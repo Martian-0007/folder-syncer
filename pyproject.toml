@@ -1,0 +1,23 @@
+[project]
+name = "folder-syncer"
+version = "0.1.0"
+description = "Folder syncer for Veeam technical assessment"
+readme = "README.md"
+authors = [
+    { name = "Martin", email = "81148675+Martian-0007@users.noreply.github.com" }
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
+dependencies = []
+
+
+[tool.ruff.lint]
+select = [
+    "D",
+    "D204",
+    "I",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
