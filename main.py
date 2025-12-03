@@ -28,36 +28,46 @@ class Synchronizer:
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
 
-        logging.info(f"Source: {self.source}")
-        logging.debug(f"Source absolute: {self.source_abs}")
+        self.logger = logging.getLogger(__name__)
 
-        logging.info(f"Replica: {self.replica}")
-        logging.debug(f"Replica absolute: {self.replica_abs}")
+        self.logger.info(f"Source: {self.source}")
+        self.logger.debug(f"Source absolute: {self.source_abs}")
 
-        logging.debug(f"Interval: {self.interval} s")
-        logging.debug(f"Count: {self.count}")
+        self.logger.info(f"Replica: {self.replica}")
+        self.logger.debug(f"Replica absolute: {self.replica_abs}")
+
+        self.logger.debug(f"Interval: {self.interval} s")
+        self.logger.debug(f"Count: {self.count}")
 
     def run(self):
         """Run the synchronizer."""
-        logging.info("Folder Syncer Running")
+        self.logger.info("Folder Syncer Running")
 
         for i in range(self.count):
             self._sync()
-            logging.info(f"Folder sync Completed {i + 1} times")
-            if i < self.count - 1: # no need to sleep on the last sync
+            self.logger.info(f"Folder sync Completed {i + 1} times")
+            if i < self.count - 1:  # no need to sleep on the last sync
                 time.sleep(self.interval)
 
     def _sync(self):
         """Synchronize source folder to replica folder."""
+        if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
+            self.logger.error(
+                f"{self.source_abs} is not a directory or doesn't exist! Quitting"
+            )
+            quit()
+
         if not os.path.exists(self.replica_abs):
-            logging.debug(f"{self.replica_abs} does not exist, creating directory...")
+            self.logger.debug(
+                f"{self.replica_abs} does not exist, creating directory..."
+            )
             os.mkdir(self.replica_abs)
 
         if not os.path.isdir(self.replica_abs):
-            logging.error(f"{self.replica_abs} is not a directory! Quitting")
+            self.logger.error(f"{self.replica_abs} is not a directory! Quitting")
             quit()
 
-        logging.debug("Cleaning replica folder")
+        self.logger.debug("Cleaning replica folder")
         self._clean(self.replica_abs)
 
         self._copyfolder(self.source, self.replica)
@@ -69,20 +79,20 @@ class Synchronizer:
 
         Args:
             symlink_path: path of symlink
-            symlink_path: absolute path of symlink
+            symlink_path_absolute: absolute path of symlink
 
         Returns:
             str: path to which the symlink should point
         """
-        logging.debug(f"Symlink absolute path: {symlink_path_absolute}")
+        self.logger.debug(f"Symlink absolute path: {symlink_path_absolute}")
 
         if self.source_abs == os.path.commonpath(
             [self.source_abs, symlink_path_absolute]
         ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
-            logging.debug(f"Symlink inside source, using {symlink_path}")
+            self.logger.debug(f"Symlink inside source, using {symlink_path}")
             return symlink_path
         else:
-            logging.debug(
+            self.logger.debug(
                 f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
             )
             return symlink_path_absolute
@@ -94,10 +104,12 @@ class Synchronizer:
 
         if os.path.exists(folder_path):
             for i in os.listdir(folder_path):
-                logging.info(f"Remove: {os.path.abspath(os.path.join(folder_path, i))}")
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(folder_path, i))}"
+                )
 
                 if os.path.isdir(os.path.join(folder_path, i)):
-                    shutil.rmtree(os.path.join(folder_path, i)) # remove even non-empty
+                    shutil.rmtree(os.path.join(folder_path, i))  # remove even non-empty
                 else:
                     os.remove(os.path.join(folder_path, i))
 
@@ -110,7 +122,7 @@ class Synchronizer:
         """
         contents = os.scandir(src)
 
-        logging.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
+        self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
         if not os.path.exists(dst):
             os.mkdir(dst)
@@ -120,11 +132,11 @@ class Synchronizer:
                 self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
 
             elif i.is_junction():
-                logging.warn(
+                self.logger.warn(
                     f"Junction in path {os.path.realpath(os.path.join(src, i.name))}"
                 )
 
-                logging.info(
+                self.logger.info(
                     f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
                 )
 
@@ -133,24 +145,37 @@ class Synchronizer:
             elif i.is_symlink():
                 source_link_path = os.readlink(i.path)
 
-                logging.info(
+                self.logger.info(
                     f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
                 )
 
                 os.symlink(
-                    self._symlink_path_handler(source_link_path, os.path.abspath(os.path.join(src, source_link_path))),
+                    self._symlink_path_handler(
+                        source_link_path,
+                        os.path.abspath(os.path.join(src, source_link_path)),
+                    ),
                     os.path.join(dst, i.name),
                 )
 
+                shutil.copystat(i.path, os.path.join(dst, i.name))
+
             elif i.is_file():
-                logging.info(
+                self.logger.info(
                     f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
                 )
 
                 shutil.copy2(i.path, os.path.join(dst, i.name))
 
             else:
-                logging.error(f"Unknown file type: {os.path.abspath(i.path)}")
+                self.logger.error(
+                    f"Unknown file type: {os.path.abspath(i.path)}, attempting copy..."
+                )
+
+                self.logger.info(
+                    f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
+                )
+
+                shutil.copy2(i.path, os.path.join(dst, i.name))
 
 
 def main():
@@ -169,14 +194,20 @@ def main():
 
     args = parser.parse_args()
 
-    logging.getLogger(__name__).addHandler(logging.StreamHandler())
+    logger = logging.getLogger(__name__)
+    fh = logging.FileHandler(args.logfile, "w")
+    fh.setLevel(logging.DEBUG)
+
+    ch = logging.StreamHandler(sys.stderr)
+    ch.setLevel(logging.DEBUG)
+
     logging.basicConfig(
         level=logging.DEBUG,
-        #filename=args.logfile,
-        #filemode="w"
         format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-        stream=sys.stderr
+        handlers=[ch, fh],
     )
+
+    logger.debug("Logger initialized")
 
     syncer = Synchronizer(args.source, args.replica, args.interval_seconds, args.count)
 
