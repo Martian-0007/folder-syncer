@@ -1,6 +1,7 @@
 """Folder Synchronizer."""
 
 import argparse
+import filecmp
 import logging
 import os
 import shutil
@@ -72,10 +73,16 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self.logger.debug("Cleaning replica folder")
-        self._clean(self.replica_abs)
+        # self.logger.debug("Cleaning replica folder")
+        # self._clean(self.replica_abs)
+        #
+        # self._copyfolder(self.source, self.replica)
+        #
+        # Original implementation - would take morbidly long and take up IO on large directories
 
-        self._copyfolder(self.source, self.replica)
+        self._compare(self.source, self.replica)
+
+        pass  # TODO
 
     def _clean(self, folder_path: str):
         """Clean the folder."""
@@ -137,32 +144,10 @@ class Synchronizer:
                 self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
 
             elif i.is_junction():
-                self.logger.warning(
-                    f"Junction in path {os.path.realpath(os.path.join(src, i.name))}"
-                )
-
-                self.logger.info(
-                    f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
-                )
-
-                shutil.copy2(i.path, os.path.join(dst, i.name))
+                self._handle_junction(i, src, dst)
 
             elif i.is_symlink():
-                source_link_path = os.readlink(i.path)
-
-                self.logger.info(
-                    f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
-                )
-
-                os.symlink(
-                    self._symlink_path_handler(
-                        source_link_path,
-                        os.path.abspath(os.path.join(src, source_link_path)),
-                    ),
-                    os.path.join(dst, i.name),
-                )
-
-                shutil.copystat(i.path, os.path.join(dst, i.name))
+                self._handle_symlink(i, src, dst)
 
             elif i.is_file():
                 self.logger.info(
@@ -172,21 +157,102 @@ class Synchronizer:
                 shutil.copy2(i.path, os.path.join(dst, i.name))
 
             else:
-                self.logger.error(
-                    f"Unknown file type: {os.path.abspath(i.path)}, attempting copy..."
-                )
+                self._handle_unknown_file(i, src, dst)
 
-                self.logger.info(
-                    f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
-                )
+    def _compare(self, src, dst):
+        """Compare source and destination folders."""
+        src_entries = os.scandir(src)
+        dst_entries = os.scandir(dst)
 
-                try:
-                    shutil.copy2(i.path, os.path.join(dst, i.name))
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to copy: {os.path.abspath(i.path)}, error: {e}"
+        for i in src_entries:
+            if i in dst_entries:
+                same = filecmp.cmp(i.path, os.path.join(dst, i.name), shallow=False)
+
+                if same:
+                    self.logger.debug(
+                        f"File {os.path.abspath(i.name)} is already replicated"
                     )
-                    self.logger.info(f"Skipping {os.path.abspath(i.path)}")
+
+            else:
+                self.logger.debug(f"{os.path.abspath(i.path)} is not the same")
+
+                if i.is_dir(follow_symlinks=False):
+                    if os.path.exists(os.path.join(dst, i.name)) and os.path.isdir(
+                        os.path.join(dst, i.name)
+                    ):
+                        self._compare(
+                            os.path.join(src, i.name), os.path.join(dst, i.name)
+                        )
+
+                    elif not os.path.exists(os.path.join(dst, i.name)):
+                        self._copyfolder(
+                            os.path.join(src, i.name), os.path.join(dst, i.name)
+                        )
+
+                    else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                        self.logger.info(
+                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                        )
+
+                        os.remove(os.path.join(dst, i.name))
+
+                        self._copyfolder(
+                            os.path.join(src, i.name), os.path.join(dst, i.name)
+                        )
+
+                elif i.is_junction():
+                    self._handle_junction(i, src, dst)
+
+                elif i.is_symlink():
+                    self._handle_symlink(i, src, dst)
+
+                else:
+                    self._handle_unknown_file(i, src, dst)
+
+    def _handle_junction(self, entry: os.DirEntry[str], src, dst):
+        self.logger.warning(
+            f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
+        )
+
+        self.logger.info(
+            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+        )
+
+        shutil.copy2(entry.path, os.path.join(dst, entry.name))
+
+    def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
+        source_link_path = os.readlink(entry.path)
+
+        self.logger.info(
+            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+        )
+
+        os.symlink(
+            self._symlink_path_handler(
+                source_link_path,
+                os.path.abspath(os.path.join(src, source_link_path)),
+            ),
+            os.path.join(dst, entry.name),
+        )
+
+        shutil.copystat(entry.path, os.path.join(dst, entry.name))
+
+    def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
+        self.logger.warning(
+            f"Unknown file type: {os.path.abspath(entry.path)}, attempting copy..."
+        )
+
+        self.logger.info(
+            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+        )
+
+        try:
+            shutil.copy2(entry.path, os.path.join(dst, entry.name))
+        except Exception as e:
+            self.logger.error(
+                f"Failed to copy: {os.path.abspath(entry.path)}, error: {e}"
+            )
+            self.logger.info(f"Skipping {os.path.abspath(entry.path)}")
 
 
 def main():
@@ -222,7 +288,10 @@ def main():
 
     syncer = Synchronizer(args.source, args.replica, args.interval_seconds, args.count)
 
-    syncer.run()
+    try:
+        syncer.run()
+    except KeyboardInterrupt:
+        logger.error(f"Interrupted, task unfinished")
 
 
 if __name__ == "__main__":
