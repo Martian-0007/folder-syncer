@@ -12,7 +12,9 @@ import time
 class Synchronizer:
     """Class for the Folder Synchronizer."""
 
-    def __init__(self, source: str, replica: str, interval_secs: int, count: int):
+    def __init__(
+        self, source: str, replica: str, interval_secs: int = 30, count: int = 1
+    ):
         """Initialize the Synchronizer attributes for later use.
 
         Args:
@@ -150,11 +152,7 @@ class Synchronizer:
                 self._handle_symlink(i, src, dst)
 
             elif i.is_file():
-                self.logger.info(
-                    f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
-                )
-
-                shutil.copy2(i.path, os.path.join(dst, i.name))
+                self._handle_file(i, src, dst)
 
             else:
                 self._handle_unknown_file(i, src, dst)
@@ -164,8 +162,21 @@ class Synchronizer:
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
 
+        src_contents = [i.name for i in src_entries]
+        dst_contents = [i.name for i in dst_entries]
+
+        self.logger.info(f"Comparing: {src_contents} vs. {dst_contents}")
+
+        for i in dst_entries:
+            if i.name not in src_contents:
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                )
+
+                os.remove(os.path.join(dst, i.name))
+
         for i in src_entries:
-            if i in dst_entries:
+            if i.name in dst_contents:
                 same = filecmp.cmp(i.path, os.path.join(dst, i.name), shallow=False)
 
                 if same:
@@ -201,10 +212,29 @@ class Synchronizer:
                         )
 
                 elif i.is_junction():
+                    self.logger.info(
+                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                    )
+
+                    os.remove(os.path.join(dst, i.name))
+
                     self._handle_junction(i, src, dst)
 
                 elif i.is_symlink():
+                    self.logger.info(
+                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                    )
+
+                    os.remove(os.path.join(dst, i.name))
                     self._handle_symlink(i, src, dst)
+
+                elif i.is_file():
+                    self.logger.info(
+                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                    )
+
+                    os.remove(os.path.join(dst, i.name))
+                    self._handle_file(i, src, dst)
 
                 else:
                     self._handle_unknown_file(i, src, dst)
@@ -227,15 +257,34 @@ class Synchronizer:
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
         )
 
-        os.symlink(
-            self._symlink_path_handler(
-                source_link_path,
-                os.path.abspath(os.path.join(src, source_link_path)),
-            ),
-            os.path.join(dst, entry.name),
+        self.logger.debug(
+            f"Symlink target: {
+                self._symlink_path_handler(
+                    source_link_path,
+                    os.path.abspath(os.path.join(src, source_link_path)),
+                )
+            }"
         )
 
-        shutil.copystat(entry.path, os.path.join(dst, entry.name))
+        try:
+            os.symlink(
+                self._symlink_path_handler(
+                    source_link_path,
+                    os.path.abspath(os.path.join(src, source_link_path)),
+                ),
+                os.path.join(dst, entry.name),
+            )
+
+            shutil.copystat(entry.path, os.path.join(dst, entry.name))
+        except OSError as e:
+            self.logger.error(f"Failed to copy symlink: {e}, skipping...")
+
+    def _handle_file(self, entry: os.DirEntry[str], src, dst):
+        self.logger.info(
+            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+        )
+
+        shutil.copy2(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.warning(
@@ -247,6 +296,22 @@ class Synchronizer:
         )
 
         try:
+            shutil.copy2(entry.path, os.path.join(dst, entry.name))
+        except FileExistsError:
+            self.logger.debug(
+                f"File {os.path.abspath(os.path.join(dst, entry.name))} already exists, replacing..."
+            )
+
+            self.logger.info(
+                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
+
+            os.remove(os.path.join(dst, entry.name))
+
+            self.logger.info(
+                f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
+
             shutil.copy2(entry.path, os.path.join(dst, entry.name))
         except Exception as e:
             self.logger.error(
@@ -268,8 +333,13 @@ def main():
     )
     parser.add_argument("count", help="Number of synchronizations", type=int)
     parser.add_argument("logfile", help="Path to log file")
+    # TODO: Follow symlinks
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except argparse.ArgumentError:
+        parser.print_help()
+        quit()
 
     logger = logging.getLogger(__name__)
     fh = logging.FileHandler(args.logfile, "w")
@@ -285,6 +355,16 @@ def main():
     )
 
     logger.debug("Logger initialized")
+
+    if not os.chmod in os.supports_follow_symlinks:
+        logger.warning("Cannot modify permission bits of symlinks")
+    if not os.utime in os.supports_follow_symlinks:
+        logger.warning("Cannot modify last access and modification times of symlinks")
+    try:
+        if not os.chflags in os.supports_follow_symlinks:
+            logger.warning("Cannot modify flags of symlinks")
+    except AttributeError:
+        pass  # os.chflags is not supported on all platforms
 
     syncer = Synchronizer(args.source, args.replica, args.interval_seconds, args.count)
 
