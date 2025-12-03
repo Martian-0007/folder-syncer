@@ -180,7 +180,13 @@ class Synchronizer:
                     f"Copy: {os.path.abspath(i.path)} to {os.path.abspath(os.path.join(dst, i.name))}"
                 )
 
-                shutil.copy2(i.path, os.path.join(dst, i.name))
+                try:
+                    shutil.copy2(i.path, os.path.join(dst, i.name))
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to copy: {os.path.abspath(i.path)}, error: {e}"
+                    )
+                    self.logger.info(f"Skipping {os.path.abspath(i.path)}")
 
 
 def main():
