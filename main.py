@@ -87,7 +87,7 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self._sync_folders(self.source, self.replica)
+        self._sync_folder(self.source, self.replica)
 
     def _copyfolder(self, src, dst):
         """Copy source folder to destination.
@@ -123,7 +123,7 @@ class Synchronizer:
 
         shutil.copystat(src, dst, follow_symlinks=False)
 
-    def _sync_folders(self, src, dst):
+    def _sync_folder(self, src, dst):
         """Sync source and destination folders."""
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
@@ -218,7 +218,7 @@ class Synchronizer:
             if os.path.exists(os.path.join(dst, entry.name)) and os.path.isdir(
                 os.path.join(dst, entry.name)
             ):
-                self._sync_folders(
+                self._sync_folder(
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
@@ -257,10 +257,10 @@ class Synchronizer:
         self.logger.debug("Copy Junction")
 
         self.logger.warning(
-            f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
+            f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}, recursing as regular folder..."
         )
 
-        self._copy(entry.path, os.path.join(dst, entry.name))
+        self._sync_folder(entry.path, os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
         source_link_path = os.readlink(entry.path)
