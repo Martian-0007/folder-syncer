@@ -166,7 +166,7 @@ class Synchronizer:
             self.logger.debug(f"Syncing entry: {i}")
 
             if i.name in dst_contents:
-                same = self._compare_entries(i, src, dst)
+                same = self._compare_entry(i, src, dst)
 
                 if same:
                     self.logger.debug(
@@ -179,19 +179,14 @@ class Synchronizer:
 
             self._sync_item(i, src, dst)
 
-    def _compare_entries(self, entry: os.DirEntry[str], src, dst) -> bool:
-        same = False  # by default assume entries are different
+    def _compare_entry(self, entry: os.DirEntry[str], src, dst) -> bool:
+        same = False  # by default assume source and replica are different
 
         if entry.is_dir():
             # directories need to have files checked, not the directory objects themselves
             return same
 
         try:
-            same = filecmp.cmp(entry.path, os.path.join(dst, entry.name), shallow=False)
-        except FileNotFoundError:
-            # Since we are checking if the files already exist and are the same, this shows it's not present
-            # Most commonly happened with a symlink, filecmp follows symlinks
-            self.logger.debug("Comparison: FileNotFoundError: trying symlink")
             if entry.is_symlink():
                 source_link_path = os.readlink(entry.path)
 
@@ -207,7 +202,12 @@ class Synchronizer:
                     same = True
 
             else:
-                same = False
+                same = filecmp.cmp(entry.path, os.path.join(dst, entry.name), shallow=False)
+                # also takes care of os.stat() signatures
+        except FileNotFoundError as e:
+            # Since we are checking if the files already exist and are the same, this shows it's not same
+            self.logger.error(f"Comparison: FileNotFoundError: {e}")
+            same = False
 
         return same
 
