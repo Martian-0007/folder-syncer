@@ -87,9 +87,7 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self._compare_folders(self.source, self.replica)
-
-        pass  # TODO
+        self._copyfolder(self.source, self.replica)
 
     def _clean(self, folder_path: str):
         """Clean the folder."""
@@ -121,7 +119,6 @@ class Synchronizer:
         if not os.path.exists(dst):
             os.mkdir(dst)
 
-        shutil.copystat(src, dst, follow_symlinks=False)
 
         for i in contents:
             if i.is_dir(follow_symlinks=False):
@@ -138,6 +135,8 @@ class Synchronizer:
 
             else:
                 self._handle_unknown_file(i, src, dst)
+
+        shutil.copystat(src, dst, follow_symlinks=False)
 
     def _compare_folders(self, src, dst):
         """Compare source and destination folders."""
