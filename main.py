@@ -169,6 +169,8 @@ class Synchronizer:
 
         try:
             if entry.is_symlink():
+                self.logger.debug(f"Comparison: {entry.path} is a symlink")
+
                 source_link_path = os.readlink(entry.path)
 
                 target = self._symlink_path_handler(
@@ -178,6 +180,13 @@ class Synchronizer:
                 name = name = os.path.join(dst, entry.name)
 
                 destination_link_path = os.readlink(name)
+
+                self.logger.debug(f"Comparison: symlink target: {target}")
+                self.logger.debug(f"Comparison: symlink name: {name}")
+
+                self.logger.debug(f"Comparison: source link target path: {source_link_path}")
+                self.logger.debug(f"Comparison: destination link target path: {source_link_path}")
+
 
                 if destination_link_path == target and target is not None:
                     same = True
