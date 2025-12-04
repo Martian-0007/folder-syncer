@@ -106,11 +106,11 @@ class Synchronizer:
             self.logger.info(f"Create: {os.path.abspath(dst)}")
 
         for i in contents:
-            if i.is_dir(follow_symlinks=False):
-                self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
-
-            elif i.is_junction():
+            if i.is_junction():
                 self._handle_junction(i, src, dst)
+
+            elif i.is_dir(follow_symlinks=False):
+                self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
 
             elif i.is_symlink():
                 self._handle_symlink(i, src, dst)
