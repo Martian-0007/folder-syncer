@@ -180,7 +180,12 @@ class Synchronizer:
                 )
                 name = name = os.path.join(dst, entry.name)
 
-                destination_link_path = os.readlink(name)
+                try:
+                    destination_link_path = os.readlink(name)
+                except OSError as e:
+                    # path exists, but is most likely not a symlink -> not same
+                    self.logger.debug(f"OSError: {e.strerror}")
+                    destination_link_path = None
 
                 self.logger.debug(f"Comparison: symlink target: {target}")
                 self.logger.debug(f"Comparison: symlink name: {name}")
