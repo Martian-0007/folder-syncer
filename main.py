@@ -254,10 +254,10 @@ class Synchronizer:
         self.logger.debug("Copy Junction")
 
         self.logger.warning(
-            f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}, recursing as regular folder..."
+            f"Junction in path {os.path.abspath(os.path.join(src, entry.name))}, recursing as regular folder..."
         )
 
-        self._sync_folder(entry.path, os.path.join(dst, entry.name))
+        self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
         source_link_path = os.readlink(entry.path)
