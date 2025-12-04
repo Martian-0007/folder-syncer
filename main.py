@@ -87,23 +87,7 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self._compare_folders(self.source, self.replica)
-
-    def _clean(self, folder_path: str):
-        """Clean the folder."""
-        # An alternative idea was to remove the whole replica folder and recreate it.
-        # This could, however, rewrite metadata it shouldn't.
-
-        if os.path.exists(folder_path):
-            for i in os.listdir(folder_path):
-                self.logger.info(
-                    f"Remove: {os.path.abspath(os.path.join(folder_path, i))}"
-                )
-
-                if os.path.isdir(os.path.join(folder_path, i)):
-                    shutil.rmtree(os.path.join(folder_path, i))  # remove even non-empty
-                else:
-                    os.remove(os.path.join(folder_path, i))
+        self._sync_folders(self.source, self.replica)
 
     def _copyfolder(self, src, dst):
         """Copy source folder to destination.
@@ -117,9 +101,8 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
         if not os.path.exists(dst):
-            self.logger.info(f"Add: {os.path.abspath(dst)}")
-
             os.mkdir(dst)
+            self.logger.info(f"Create: {os.path.abspath(dst)}")
 
         for i in contents:
             if i.is_dir(follow_symlinks=False):
@@ -139,8 +122,8 @@ class Synchronizer:
 
         shutil.copystat(src, dst, follow_symlinks=False)
 
-    def _compare_folders(self, src, dst):
-        """Compare source and destination folders."""
+    def _sync_folders(self, src, dst):
+        """Sync source and destination folders."""
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
 
@@ -151,13 +134,12 @@ class Synchronizer:
 
         for i in dst_entries:
             if i.name not in src_contents:
-                self.logger.info(
-                    f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                )
-
                 shutil.rmtree(os.path.join(dst, i.name)) if os.path.isdir(
                     os.path.join(dst, i.name)
                 ) else os.remove(os.path.join(dst, i.name))
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                )
 
         for i in src_entries:
             self.logger.debug(f"Syncing entry: {i}")
@@ -177,10 +159,10 @@ class Synchronizer:
             self._sync_item(i, src, dst)
 
     def _compare_entry(self, entry: os.DirEntry[str], src, dst) -> bool:
-        same = False  # by default assume source and replica are different
+        same = False  # by default assume source and destination are different
 
         if entry.is_dir():
-            # directories need to have files checked, not the directory objects themselves
+            # Directories need to have the files checked, not the directory objects themselves
             return same
 
         try:
@@ -193,29 +175,30 @@ class Synchronizer:
                 )
                 name = name = os.path.join(dst, entry.name)
 
-                replica_link_path = os.readlink(name)
+                destination_link_path = os.readlink(name)
 
-                if replica_link_path == target and target is not None:
+                if destination_link_path == target and target is not None:
                     same = True
 
             else:
                 same = filecmp.cmp(
                     entry.path, os.path.join(dst, entry.name), shallow=False
                 )
-                # also takes care of os.stat() signatures
+                # Also takes care of os.stat() signatures
         except FileNotFoundError as e:
-            # Since we are checking if the files already exist and are the same, this shows it's not same
+            # Nothing and something is not the same
             self.logger.error(f"Comparison: FileNotFoundError: {e}")
             same = False
 
         return same
 
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
+        """Sync an individual item."""
         if entry.is_dir(follow_symlinks=False):
             if os.path.exists(os.path.join(dst, entry.name)) and os.path.isdir(
                 os.path.join(dst, entry.name)
             ):
-                self._compare_folders(
+                self._sync_folders(
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
@@ -225,11 +208,10 @@ class Synchronizer:
                 )
 
             else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
-
-                os.remove(os.path.join(dst, entry.name))
 
                 self._copyfolder(
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
@@ -237,37 +219,37 @@ class Synchronizer:
 
         elif entry.is_junction():
             if os.path.exists(os.path.join(dst, entry.name)):
+                os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
-                os.remove(os.path.join(dst, entry.name))
 
             self._handle_junction(entry, src, dst)
 
         elif entry.is_symlink():
             if os.path.exists(os.path.join(dst, entry.name)):
+                os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
-                os.remove(os.path.join(dst, entry.name))
 
             self._handle_symlink(entry, src, dst)
 
         elif entry.is_file():
             if os.path.exists(os.path.join(dst, entry.name)):
+                os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
-                os.remove(os.path.join(dst, entry.name))
 
             self._handle_file(entry, src, dst)
 
         else:
             if os.path.exists(os.path.join(dst, entry.name)):
+                os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
-                os.remove(os.path.join(dst, entry.name))
 
             self._handle_unknown_file(entry, src, dst)
 
@@ -278,11 +260,10 @@ class Synchronizer:
             f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
         )
 
+        shutil.copy2(entry.path, os.path.join(dst, entry.name))
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
         )
-
-        shutil.copy2(entry.path, os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
         source_link_path = os.readlink(entry.path)
@@ -295,15 +276,10 @@ class Synchronizer:
         name = os.path.join(dst, entry.name)
 
         self.logger.debug(f"Symlink target: {target}")
-
         self.logger.debug(f"Symlink name: {name}")
 
         try:
             if target is not None:
-                self.logger.info(
-                    f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-                )
-
                 os.symlink(
                     target,
                     name,
@@ -311,6 +287,10 @@ class Synchronizer:
 
                 shutil.copystat(
                     entry.path, os.path.join(dst, entry.name), follow_symlinks=False
+                )
+
+                self.logger.info(
+                    f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
 
             else:
@@ -321,11 +301,10 @@ class Synchronizer:
                 if os.path.exists(os.path.join(dst, entry.name)):
                     # symlink could be the same as source but dangling -> remove from replica
                     # (e.g. symlink became dangling between syncs)
+                    os.remove(os.path.join(dst, entry.name))
                     self.logger.info(
                         f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                     )
-
-                    os.remove(os.path.join(dst, entry.name))
 
         except OSError as e:
             self.logger.error(f"Failed to copy symlink: {e}, skipping...")
@@ -333,11 +312,10 @@ class Synchronizer:
     def _handle_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy File")
 
+        shutil.copy2(entry.path, os.path.join(dst, entry.name))
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
         )
-
-        shutil.copy2(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy Funny File")
@@ -346,28 +324,27 @@ class Synchronizer:
             f"Unknown file type: {os.path.abspath(entry.path)}, attempting copy..."
         )
 
-        self.logger.info(
-            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-        )
-
         try:
             shutil.copy2(entry.path, os.path.join(dst, entry.name))
+            self.logger.info(
+                f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
+
         except FileExistsError:
             self.logger.debug(
                 f"File {os.path.abspath(os.path.join(dst, entry.name))} already exists, replacing..."
             )
 
+            os.remove(os.path.join(dst, entry.name))
             self.logger.info(
                 f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
             )
 
-            os.remove(os.path.join(dst, entry.name))
-
+            shutil.copy2(entry.path, os.path.join(dst, entry.name))
             self.logger.info(
                 f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
             )
 
-            shutil.copy2(entry.path, os.path.join(dst, entry.name))
         except Exception as e:
             self.logger.error(
                 f"Failed to copy: {os.path.abspath(entry.path)}, error: {e}"
