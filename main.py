@@ -208,7 +208,17 @@ class Synchronizer:
 
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
         """Sync an individual item."""
-        if entry.is_dir(follow_symlinks=False):
+        if entry.is_junction():
+            if os.path.exists(os.path.join(dst, entry.name)):
+                self._remove(os.path.join(dst, entry.name))
+
+            self._handle_junction(entry, src, dst)
+
+            self._sync_folders(
+                os.path.join(src, entry.name), os.path.join(dst, entry.name)
+            )
+
+        elif entry.is_dir(follow_symlinks=False):
             if os.path.exists(os.path.join(dst, entry.name)) and os.path.isdir(
                 os.path.join(dst, entry.name)
             ):
