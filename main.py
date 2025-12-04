@@ -352,7 +352,7 @@ def main():
     )
     parser.add_argument("count", help="Number of synchronizations", type=int)
     parser.add_argument("logfile", help="Path to log file")
-    parser.add_argument("-v", "--verbose", help="verbose")
+    parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
     # TODO: Follow symlinks
 
     try:

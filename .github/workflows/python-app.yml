@@ -39,6 +39,9 @@ jobs:
     - name: Run application 3
       run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log -v
 
+    - name: Run application 4
+      run: python main.py syncer-testing/test4/source/ syncer-testing/test4/replica/ 1 99 syncer-testing/test4/log -v
+
     - name: Clean up
       run: rm syncer-testing -fr
 
@@ -68,6 +71,9 @@ jobs:
 
     - name: Run application 3
       run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log -v
+
+    - name: Run application 4
+      run: python main.py syncer-testing/test4/source/ syncer-testing/test4/replica/ 1 99 syncer-testing/test4/log -v
 
     - name: Clean up
       run: rm -r -fo syncer-testing
