@@ -62,24 +62,13 @@ class Synchronizer:
 
     def _sync(self):
         """Synchronize source folder to replica folder."""
-        if not os.path.exists(self.source_abs) or not os.path.isdir(
-            self.source_abs
-        ):  # Check the source is valid
+        if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
             self.logger.error(
                 f"Source {self.source_abs} is not a directory or doesn't exist! Quitting"
             )
             quit()
 
-        if not os.path.exists(self.replica_abs):  # If replica doesn't exist, create it
-            self.logger.debug(
-                f"Replica {self.replica_abs} does not exist, creating directory..."
-            )
-
-            self.logger.debug("Create")
-            os.mkdir(self.replica_abs)
-            self.logger.info(f"Create: {self.replica_abs}")
-
-        if not os.path.isdir(self.replica_abs):  # Check replica is a valid directory
+        if not os.path.isdir(self.replica_abs):
             self.logger.error(
                 f"Replica {self.replica_abs} is not a directory! Quitting"
             )
@@ -124,7 +113,6 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
     def _sync_folder(self, src, dst):
-        """Sync source and destination folders."""
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
 
@@ -132,6 +120,11 @@ class Synchronizer:
         dst_contents = os.listdir(dst)
 
         self.logger.debug(f"Comparing: {src_contents} vs. {dst_contents}")
+
+        if not os.path.exists(dst):
+            self.logger.debug("Create")
+            os.mkdir(dst)
+            self.logger.info(f"Create: {self.replica_abs}")
 
         for i in dst_entries:
             if i.name not in src_contents:
@@ -172,12 +165,11 @@ class Synchronizer:
                     source_link_path,
                     os.path.abspath(os.path.join(src, source_link_path)),
                 )
-                name = name = os.path.join(dst, entry.name)
+                name = os.path.join(dst, entry.name)
 
                 try:
                     destination_link_path = os.readlink(name)
                 except OSError as e:
-                    # path exists, but is most likely not a symlink -> not same
                     self.logger.debug(f"OSError: {e.strerror}")
                     destination_link_path = None
 
@@ -200,14 +192,13 @@ class Synchronizer:
                 )
                 # Also takes care of os.stat() signatures
         except FileNotFoundError as e:
-            # Nothing and something is not the same
             self.logger.error(f"Comparison: FileNotFoundError: {e}")
+            # Nothing and something is not the same
             same = False
 
         return same
 
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
-        """Sync an individual item."""
         if entry.is_junction():
             if os.path.exists(os.path.join(dst, entry.name)):
                 self._remove(os.path.join(dst, entry.name))
@@ -295,7 +286,7 @@ class Synchronizer:
                 )
 
                 if os.path.exists(os.path.join(dst, entry.name)):
-                    # symlink could be the same as source but dangling -> remove from replica
+                    # symlink could be the same as source but dangling -> remove from destination
                     # (e.g. symlink became dangling between syncs)
                     self._remove(os.path.join(dst, entry.name))
 
@@ -336,6 +327,7 @@ class Synchronizer:
         """Check if a symlink is pointing inside the source folder.
 
         Returns absolute path of the original link in case symlink points outside the source folder.
+        Returns None when symlink is dangling and dangling symlinks are not enabled.
 
         Args:
             symlink_path: path of symlink
@@ -384,13 +376,11 @@ class Synchronizer:
             return None
 
     def _copy(self, src, dst):
-        """Copy object and log the operation."""
         self.logger.debug("Copy")
         shutil.copy2(src, dst)
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
     def _remove(self, path):
-        """Remove object and log the operation."""
         self.logger.debug("Remove")
         shutil.rmtree(os.path.join(path)) if os.path.isdir(
             os.path.join(path)
@@ -428,6 +418,7 @@ def main():
         quit()
 
     logger = logging.getLogger(__name__)
+
     fh = logging.FileHandler(args.logfile, "w")
     fh.setLevel(logging.DEBUG)
 
@@ -451,6 +442,10 @@ def main():
             logger.warning("Cannot modify flags of symlinks")
     except AttributeError:
         pass  # os.chflags is not supported on all platforms
+
+    if args.interval_seconds < 0:
+        logger.error("Interval must be a positive integer!")
+        quit()
 
     syncer = Synchronizer(
         args.source,
