@@ -13,7 +13,12 @@ class Synchronizer:
     """Class for the Folder Synchronizer."""
 
     def __init__(
-        self, source: str, replica: str, interval_secs: int = 30, count: int = 1
+        self,
+        source: str,
+        replica: str,
+        interval_secs: int = 30,
+        count: int = 1,
+        dangle: bool = False,
     ):
         """Initialize the Synchronizer attributes for later use.
 
@@ -22,11 +27,13 @@ class Synchronizer:
             replica: replica folder
             interval_secs: interval between two synchronizations in seconds
             count: count of synchronizations
+            dangle: copy dangling symlinks too
         """
         self.source: str = source
         self.replica: str = replica
         self.interval: int = interval_secs
         self.count: int = count
+        self.dangle: bool = dangle
 
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
@@ -80,7 +87,7 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self._compare(self.source, self.replica)
+        self._compare_folders(self.source, self.replica)
 
         pass  # TODO
 
@@ -99,31 +106,6 @@ class Synchronizer:
                     shutil.rmtree(os.path.join(folder_path, i))  # remove even non-empty
                 else:
                     os.remove(os.path.join(folder_path, i))
-
-    def _symlink_path_handler(self, symlink_path, symlink_path_absolute) -> str:
-        """Check if a symlink is pointing inside the source folder.
-
-        Returns absolute path of the original link in case symlink points outside the source folder.
-
-        Args:
-            symlink_path: path of symlink
-            symlink_path_absolute: absolute path of symlink
-
-        Returns:
-            str: path to which the symlink should point
-        """
-        self.logger.debug(f"Symlink absolute path: {symlink_path_absolute}")
-
-        if self.source_abs == os.path.commonpath(
-            [self.source_abs, symlink_path_absolute]
-        ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
-            self.logger.debug(f"Symlink inside source, using {symlink_path}")
-            return symlink_path
-        else:
-            self.logger.warning(
-                f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
-            )
-            return symlink_path_absolute
 
     def _copyfolder(self, src, dst):
         """Copy source folder to destination.
@@ -155,7 +137,7 @@ class Synchronizer:
             else:
                 self._handle_unknown_file(i, src, dst)
 
-    def _compare(self, src, dst):
+    def _compare_folders(self, src, dst):
         """Compare source and destination folders."""
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
@@ -171,13 +153,15 @@ class Synchronizer:
                     f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
                 )
 
-                os.remove(os.path.join(dst, i.name))
+                shutil.rmtree(os.path.join(dst, i.name)) if os.path.isdir(
+                    os.path.join(dst, i.name)
+                ) else os.remove(os.path.join(dst, i.name))
 
         for i in src_entries:
             self.logger.debug(f"Syncing entry: {i}")
 
             if i.name in dst_contents:
-                same = filecmp.cmp(i.path, os.path.join(dst, i.name), shallow=False)
+                same = self._compare_entries(i, src, dst)
 
                 if same:
                     self.logger.debug(
@@ -190,12 +174,40 @@ class Synchronizer:
 
             self._sync_item(i, src, dst)
 
+    def _compare_entries(self, entry: os.DirEntry[str], src, dst) -> bool:
+        same = False  # by default assume entries are different
+
+        try:
+            same = filecmp.cmp(entry.path, os.path.join(dst, entry.name), shallow=False)
+        except FileNotFoundError:
+            # Since we are checking if the files already exist and are the same, this shows it's not present
+            # Most commonly happened with a symlink, filecmp follows symlinks
+            self.logger.debug("Comparison: FileNotFoundError: trying symlink")
+            if entry.is_symlink():
+                source_link_path = os.readlink(entry.path)
+
+                target = self._symlink_path_handler(
+                    source_link_path,
+                    os.path.abspath(os.path.join(src, source_link_path)),
+                )
+                name = name = os.path.join(dst, entry.name)
+
+                replica_link_path = os.readlink(name)
+
+                if replica_link_path == target and target is not None:
+                    same = True
+
+            else:
+                same = False
+
+        return same
+
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
         if entry.is_dir(follow_symlinks=False):
             if os.path.exists(os.path.join(dst, entry.name)) and os.path.isdir(
                 os.path.join(dst, entry.name)
             ):
-                self._compare(
+                self._compare_folders(
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
@@ -274,23 +286,39 @@ class Synchronizer:
         )
         name = os.path.join(dst, entry.name)
 
-        self.logger.info(
-            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-        )
-
         self.logger.debug(f"Symlink target: {target}")
 
         self.logger.debug(f"Symlink name: {name}")
 
         try:
-            os.symlink(
-                target,
-                name,
-            )
+            if target is not None:
+                self.logger.info(
+                    f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
 
-            shutil.copystat(
-                entry.path, os.path.join(dst, entry.name), follow_symlinks=False
-            )
+                os.symlink(
+                    target,
+                    name,
+                )
+
+                shutil.copystat(
+                    entry.path, os.path.join(dst, entry.name), follow_symlinks=False
+                )
+
+            else:
+                self.logger.warning(
+                    "Symlink is dangling and --dangle-symlinks is not enabled, skipping..."
+                )
+
+                if os.path.exists(os.path.join(dst, entry.name)):
+                    # symlink could be the same as source but dangling -> remove from replica
+                    # (e.g. symlink became dangling between syncs)
+                    self.logger.info(
+                        f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                    )
+
+                    os.remove(os.path.join(dst, entry.name))
+
         except OSError as e:
             self.logger.error(f"Failed to copy symlink: {e}, skipping...")
 
@@ -338,6 +366,58 @@ class Synchronizer:
             )
             self.logger.info(f"Skipping {os.path.abspath(entry.path)}")
 
+    def _symlink_path_handler(self, symlink_path, symlink_path_absolute) -> str | None:
+        """Check if a symlink is pointing inside the source folder.
+
+        Returns absolute path of the original link in case symlink points outside the source folder.
+
+        Args:
+            symlink_path: path of symlink
+            symlink_path_absolute: absolute path of symlink
+
+        Returns:
+            str: path to which the symlink should point
+            None: incorrectly dangling symlink
+        """
+        self.logger.debug(f"Symlink absolute path: {symlink_path_absolute}")
+
+        dangling = not os.path.exists(symlink_path_absolute)
+
+        self.logger.debug(f"Dangling: {dangling}")
+
+        if not dangling:
+            if (
+                self.source_abs
+                == os.path.commonpath([self.source_abs, symlink_path_absolute])
+            ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
+                self.logger.debug(f"Symlink inside source, using {symlink_path}")
+                return symlink_path
+
+            else:
+                self.logger.warning(
+                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
+                )
+                return symlink_path_absolute
+
+        elif self.dangle:
+            self.logger.warning("Symlink is dangling, but --dangle-symlinks is enabled")
+
+            if (
+                self.source_abs
+                == os.path.commonpath([self.source_abs, symlink_path_absolute])
+            ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
+                self.logger.debug(f"Symlink inside source, using {symlink_path}")
+                return symlink_path
+
+            else:
+                self.logger.warning(
+                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
+                )
+                return symlink_path_absolute
+
+        else:
+            return None
+
 
 def main():
     """Main function."""
@@ -352,8 +432,15 @@ def main():
     )
     parser.add_argument("count", help="Number of synchronizations", type=int)
     parser.add_argument("logfile", help="Path to log file")
+
+    # Extras
     parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
-    # TODO: Follow symlinks
+    parser.add_argument(
+        "--dangle-symlinks",
+        help="Keep dangling symlinks (default: skip)",
+        action="store_true",
+    )
+    # Maybe TODO: Follow symlinks
 
     try:
         args = parser.parse_args()
@@ -386,7 +473,13 @@ def main():
     except AttributeError:
         pass  # os.chflags is not supported on all platforms
 
-    syncer = Synchronizer(args.source, args.replica, args.interval_seconds, args.count)
+    syncer = Synchronizer(
+        args.source,
+        args.replica,
+        args.interval_seconds,
+        args.count,
+        args.dangle_symlinks,
+    )
 
     try:
         syncer.run()
