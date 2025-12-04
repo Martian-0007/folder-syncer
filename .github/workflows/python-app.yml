@@ -25,7 +25,7 @@ jobs:
         python-version: "3.13"
 
     - name: Prep directories
-      run: 7z x testing.7z .testing/
+      run: 7z x testing.7z
 
     - name: List dirs
       run: ls -la
