@@ -162,8 +162,8 @@ class Synchronizer:
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
 
-        src_contents = [i.name for i in src_entries]
-        dst_contents = [i.name for i in dst_entries]
+        src_contents = os.listdir(src)
+        dst_contents = os.listdir(dst)
 
         self.logger.info(f"Comparing: {src_contents} vs. {dst_contents}")
 
@@ -176,68 +176,71 @@ class Synchronizer:
                 os.remove(os.path.join(dst, i.name))
 
         for i in src_entries:
+            self.logger.debug(f"Syncing entry: {i}")
+
             if i.name in dst_contents:
                 same = filecmp.cmp(i.path, os.path.join(dst, i.name), shallow=False)
 
                 if same:
                     self.logger.debug(
-                        f"File {os.path.abspath(i.name)} is already replicated"
+                        f"Comparison: File {os.path.abspath(i.name)} is already replicated"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Comparison: {os.path.abspath(i.path)} is not the same"
                     )
 
-            else:
-                self.logger.debug(f"{os.path.abspath(i.path)} is not the same")
+                    if i.is_dir(follow_symlinks=False):
+                        if os.path.exists(os.path.join(dst, i.name)) and os.path.isdir(
+                            os.path.join(dst, i.name)
+                        ):
+                            self._compare(
+                                os.path.join(src, i.name), os.path.join(dst, i.name)
+                            )
 
-                if i.is_dir(follow_symlinks=False):
-                    if os.path.exists(os.path.join(dst, i.name)) and os.path.isdir(
-                        os.path.join(dst, i.name)
-                    ):
-                        self._compare(
-                            os.path.join(src, i.name), os.path.join(dst, i.name)
-                        )
+                        elif not os.path.exists(os.path.join(dst, i.name)):
+                            self._copyfolder(
+                                os.path.join(src, i.name), os.path.join(dst, i.name)
+                            )
 
-                    elif not os.path.exists(os.path.join(dst, i.name)):
-                        self._copyfolder(
-                            os.path.join(src, i.name), os.path.join(dst, i.name)
-                        )
+                        else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                            self.logger.info(
+                                f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                            )
 
-                    else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                            os.remove(os.path.join(dst, i.name))
+
+                            self._copyfolder(
+                                os.path.join(src, i.name), os.path.join(dst, i.name)
+                            )
+
+                    elif i.is_junction():
                         self.logger.info(
                             f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
                         )
 
                         os.remove(os.path.join(dst, i.name))
 
-                        self._copyfolder(
-                            os.path.join(src, i.name), os.path.join(dst, i.name)
+                        self._handle_junction(i, src, dst)
+
+                    elif i.is_symlink():
+                        self.logger.info(
+                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
                         )
 
-                elif i.is_junction():
-                    self.logger.info(
-                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                    )
+                        os.remove(os.path.join(dst, i.name))
+                        self._handle_symlink(i, src, dst)
 
-                    os.remove(os.path.join(dst, i.name))
+                    elif i.is_file():
+                        self.logger.info(
+                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
+                        )
 
-                    self._handle_junction(i, src, dst)
+                        os.remove(os.path.join(dst, i.name))
+                        self._handle_file(i, src, dst)
 
-                elif i.is_symlink():
-                    self.logger.info(
-                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                    )
-
-                    os.remove(os.path.join(dst, i.name))
-                    self._handle_symlink(i, src, dst)
-
-                elif i.is_file():
-                    self.logger.info(
-                        f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                    )
-
-                    os.remove(os.path.join(dst, i.name))
-                    self._handle_file(i, src, dst)
-
-                else:
-                    self._handle_unknown_file(i, src, dst)
+                    else:
+                        self._handle_unknown_file(i, src, dst)
 
     def _handle_junction(self, entry: os.DirEntry[str], src, dst):
         self.logger.warning(
