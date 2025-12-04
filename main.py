@@ -165,6 +165,7 @@ class Synchronizer:
 
         if entry.is_dir():
             # Directories need to have the files checked, not the directory objects themselves
+            self.logger.debug(f"Comparison: {entry.path} is a directory")
             return same
 
         try:
