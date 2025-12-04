@@ -117,12 +117,9 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
         if not os.path.exists(dst):
-            self.logger.info(
-                f"Add: {os.path.abspath(dst)}"
-            )
+            self.logger.info(f"Add: {os.path.abspath(dst)}")
 
             os.mkdir(dst)
-
 
         for i in contents:
             if i.is_dir(follow_symlinks=False):
@@ -202,7 +199,9 @@ class Synchronizer:
                     same = True
 
             else:
-                same = filecmp.cmp(entry.path, os.path.join(dst, entry.name), shallow=False)
+                same = filecmp.cmp(
+                    entry.path, os.path.join(dst, entry.name), shallow=False
+                )
                 # also takes care of os.stat() signatures
         except FileNotFoundError as e:
             # Since we are checking if the files already exist and are the same, this shows it's not same
