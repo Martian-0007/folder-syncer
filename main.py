@@ -98,8 +98,6 @@ class Synchronizer:
         """
         contents = os.scandir(src)
 
-        self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
-
         if not os.path.exists(dst):
             self.logger.debug("Create")
             os.mkdir(dst)
@@ -122,6 +120,8 @@ class Synchronizer:
                 self._handle_unknown_file(i, src, dst)
 
         shutil.copystat(src, dst, follow_symlinks=False)
+
+        self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
     def _sync_folder(self, src, dst):
         """Sync source and destination folders."""
@@ -227,7 +227,7 @@ class Synchronizer:
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
-            else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+            else:  # dst/entry.name exists, but is a file -> delete it and copy directory from source
                 self._remove(os.path.join(dst, entry.name))
 
                 if entry.is_junction():
