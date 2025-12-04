@@ -75,9 +75,9 @@ class Synchronizer:
                 f"Replica {self.replica_abs} does not exist, creating directory..."
             )
 
-            self.logger.info(f"Create: {self.replica_abs}")
-
+            self.logger.debug("Create")
             os.mkdir(self.replica_abs)
+            self.logger.info(f"Create: {self.replica_abs}")
 
         if not os.path.isdir(self.replica_abs):  # Check replica is a valid directory
             self.logger.error(
@@ -101,6 +101,7 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
         if not os.path.exists(dst):
+            self.logger.debug("Create")
             os.mkdir(dst)
             self.logger.info(f"Create: {os.path.abspath(dst)}")
 
@@ -134,6 +135,7 @@ class Synchronizer:
 
         for i in dst_entries:
             if i.name not in src_contents:
+                self.logger.debug("Remove")
                 shutil.rmtree(os.path.join(dst, i.name)) if os.path.isdir(
                     os.path.join(dst, i.name)
                 ) else os.remove(os.path.join(dst, i.name))
@@ -208,6 +210,7 @@ class Synchronizer:
                 )
 
             else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                self.logger.debug("Remove")
                 os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
@@ -217,41 +220,25 @@ class Synchronizer:
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
-        elif entry.is_junction():
-            if os.path.exists(os.path.join(dst, entry.name)):
-                os.remove(os.path.join(dst, entry.name))
-                self.logger.info(
-                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-                )
-
-            self._handle_junction(entry, src, dst)
-
-        elif entry.is_symlink():
-            if os.path.exists(os.path.join(dst, entry.name)):
-                os.remove(os.path.join(dst, entry.name))
-                self.logger.info(
-                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-                )
-
-            self._handle_symlink(entry, src, dst)
-
-        elif entry.is_file():
-            if os.path.exists(os.path.join(dst, entry.name)):
-                os.remove(os.path.join(dst, entry.name))
-                self.logger.info(
-                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-                )
-
-            self._handle_file(entry, src, dst)
-
         else:
             if os.path.exists(os.path.join(dst, entry.name)):
+                self.logger.debug("Remove")
                 os.remove(os.path.join(dst, entry.name))
                 self.logger.info(
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
 
-            self._handle_unknown_file(entry, src, dst)
+            if entry.is_junction():
+                self._handle_junction(entry, src, dst)
+
+            elif entry.is_symlink():
+                self._handle_symlink(entry, src, dst)
+
+            elif entry.is_file():
+                self._handle_file(entry, src, dst)
+
+            else:
+                self._handle_unknown_file(entry, src, dst)
 
     def _handle_junction(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy Junction")
@@ -260,6 +247,7 @@ class Synchronizer:
             f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
         )
 
+        self.logger.debug("Copy")
         shutil.copy2(entry.path, os.path.join(dst, entry.name))
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
@@ -280,6 +268,8 @@ class Synchronizer:
 
         try:
             if target is not None:
+                self.logger.debug("Copy")
+
                 os.symlink(
                     target,
                     name,
@@ -301,6 +291,7 @@ class Synchronizer:
                 if os.path.exists(os.path.join(dst, entry.name)):
                     # symlink could be the same as source but dangling -> remove from replica
                     # (e.g. symlink became dangling between syncs)
+                    self.logger.debug("Remove")
                     os.remove(os.path.join(dst, entry.name))
                     self.logger.info(
                         f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
@@ -312,6 +303,7 @@ class Synchronizer:
     def _handle_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy File")
 
+        self.logger.debug("Copy")
         shutil.copy2(entry.path, os.path.join(dst, entry.name))
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
@@ -325,6 +317,7 @@ class Synchronizer:
         )
 
         try:
+            self.logger.debug("Copy")
             shutil.copy2(entry.path, os.path.join(dst, entry.name))
             self.logger.info(
                 f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
@@ -335,11 +328,13 @@ class Synchronizer:
                 f"File {os.path.abspath(os.path.join(dst, entry.name))} already exists, replacing..."
             )
 
+            self.logger.debug("Remove")
             os.remove(os.path.join(dst, entry.name))
             self.logger.info(
                 f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
             )
 
+            self.logger.debug("Copy")
             shutil.copy2(entry.path, os.path.join(dst, entry.name))
             self.logger.info(
                 f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
