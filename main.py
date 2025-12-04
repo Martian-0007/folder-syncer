@@ -55,13 +55,15 @@ class Synchronizer:
 
     def _sync(self):
         """Synchronize source folder to replica folder."""
-        if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
+        if not os.path.exists(self.source_abs) or not os.path.isdir(
+            self.source_abs
+        ):  # Check the source is valid
             self.logger.error(
                 f"Source {self.source_abs} is not a directory or doesn't exist! Quitting"
             )
             quit()
 
-        if not os.path.exists(self.replica_abs):
+        if not os.path.exists(self.replica_abs):  # If replica doesn't exist, create it
             self.logger.debug(
                 f"Replica {self.replica_abs} does not exist, creating directory..."
             )
@@ -70,20 +72,13 @@ class Synchronizer:
 
             os.mkdir(self.replica_abs)
 
-        if not os.path.isdir(self.replica_abs):
+        if not os.path.isdir(self.replica_abs):  # Check replica is a valid directory
             self.logger.error(
                 f"Replica {self.replica_abs} is not a directory! Quitting"
             )
             quit()
 
         self.logger.info("Syncing...")
-
-        # self.logger.debug("Cleaning replica folder")
-        # self._clean(self.replica_abs)
-        #
-        # self._copyfolder(self.source, self.replica)
-        #
-        # Original implementation - would take morbidly long and take up IO on large directories
 
         self._compare(self.source, self.replica)
 
@@ -357,6 +352,7 @@ def main():
     )
     parser.add_argument("count", help="Number of synchronizations", type=int)
     parser.add_argument("logfile", help="Path to log file")
+    parser.add_argument("-v", "--verbose", help="verbose")
     # TODO: Follow symlinks
 
     try:
@@ -370,7 +366,7 @@ def main():
     fh.setLevel(logging.DEBUG)
 
     ch = logging.StreamHandler(sys.stderr)
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     logging.basicConfig(
         level=logging.DEBUG,

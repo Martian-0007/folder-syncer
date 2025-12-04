@@ -1,6 +1,6 @@
 [project]
 name = "folder-syncer"
-version = "0.3.1.dev1"
+version = "0.3.2.dev1"
 description = "Folder syncer for Veeam technical assessment"
 readme = "README.md"
 authors = [

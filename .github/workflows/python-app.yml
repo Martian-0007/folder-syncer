@@ -31,13 +31,13 @@ jobs:
       run: ls -la
 
     - name: Run application 1
-      run: python main.py syncer-testing/test1/source/ syncer-testing/test1/replica/ 1 99 syncer-testing/test1/log
+      run: python main.py syncer-testing/test1/source/ syncer-testing/test1/replica/ 1 99 syncer-testing/test1/log -v
 
     - name: Run application 2
-      run: python main.py syncer-testing/test2/source/ syncer-testing/test2/replica/ 1 99 syncer-testing/test3/log
+      run: python main.py syncer-testing/test2/source/ syncer-testing/test2/replica/ 1 99 syncer-testing/test3/log -v
 
     - name: Run application 3
-      run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log
+      run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log -v
 
     - name: Clean up
       run: rm syncer-testing -fr
@@ -61,13 +61,13 @@ jobs:
       run: Get-ChildItem -Force
 
     - name: Run application 1
-      run: python main.py syncer-testing/test1/source/ syncer-testing/test1/replica/ 1 99 syncer-testing/test1/log
+      run: python main.py syncer-testing/test1/source/ syncer-testing/test1/replica/ 1 99 syncer-testing/test1/log -v
 
     - name: Run application 2
-      run: python main.py syncer-testing/test2/source/ syncer-testing/test2/replica/ 1 99 syncer-testing/test3/log
+      run: python main.py syncer-testing/test2/source/ syncer-testing/test2/replica/ 1 99 syncer-testing/test3/log -v
 
     - name: Run application 3
-      run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log
+      run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log -v
 
     - name: Clean up
       run: rm -r -fo syncer-testing
