@@ -40,4 +40,4 @@ jobs:
       run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log
 
     - name: Clean up
-      run: rm syncer-testing
+      run: rm syncer-testing -fr
