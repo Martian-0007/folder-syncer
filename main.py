@@ -447,6 +447,10 @@ def main():
         logger.error("Interval must be a positive integer!")
         quit()
 
+    if args.count < 0:
+        logger.error("Count must be a positive integer!")
+        quit()
+
     syncer = Synchronizer(
         args.source,
         args.replica,
