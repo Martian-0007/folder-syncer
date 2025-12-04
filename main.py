@@ -121,6 +121,8 @@ class Synchronizer:
         if not os.path.exists(dst):
             os.mkdir(dst)
 
+        shutil.copystat(src, dst, follow_symlinks=False)
+
         for i in contents:
             if i.is_dir(follow_symlinks=False):
                 self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
@@ -176,6 +178,10 @@ class Synchronizer:
 
     def _compare_entries(self, entry: os.DirEntry[str], src, dst) -> bool:
         same = False  # by default assume entries are different
+
+        if entry.is_dir():
+            # directories need to have files checked, not the directory objects themselves
+            return same
 
         try:
             same = filecmp.cmp(entry.path, os.path.join(dst, entry.name), shallow=False)
