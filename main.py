@@ -247,11 +247,7 @@ class Synchronizer:
             f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
         )
 
-        self.logger.debug("Copy")
-        shutil.copy2(entry.path, os.path.join(dst, entry.name))
-        self.logger.info(
-            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-        )
+        self._copy(entry.path, os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
         source_link_path = os.readlink(entry.path)
@@ -303,11 +299,7 @@ class Synchronizer:
     def _handle_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy File")
 
-        self.logger.debug("Copy")
-        shutil.copy2(entry.path, os.path.join(dst, entry.name))
-        self.logger.info(
-            f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-        )
+        self._copy(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy Funny File")
@@ -317,11 +309,7 @@ class Synchronizer:
         )
 
         try:
-            self.logger.debug("Copy")
-            shutil.copy2(entry.path, os.path.join(dst, entry.name))
-            self.logger.info(
-                f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-            )
+            self._copy(entry.path, os.path.join(dst, entry.name))
 
         except FileExistsError:
             self.logger.debug(
@@ -334,11 +322,7 @@ class Synchronizer:
                 f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
             )
 
-            self.logger.debug("Copy")
-            shutil.copy2(entry.path, os.path.join(dst, entry.name))
-            self.logger.info(
-                f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
-            )
+            self._copy(entry.path, os.path.join(dst, entry.name))
 
         except Exception as e:
             self.logger.error(
@@ -397,6 +381,13 @@ class Synchronizer:
 
         else:
             return None
+
+    def _copy(self, src, dst):
+        self.logger.debug("Copy")
+        shutil.copy2(src, dst)
+        self.logger.info(
+            f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}"
+        )
 
 
 def main():
