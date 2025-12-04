@@ -241,10 +241,7 @@ class Synchronizer:
             if os.path.exists(os.path.join(dst, entry.name)):
                 self._remove(os.path.join(dst, entry.name))
 
-            if entry.is_junction():
-                self._handle_junction(entry, src, dst)
-
-            elif entry.is_symlink():
+            if entry.is_symlink():
                 self._handle_symlink(entry, src, dst)
 
             elif entry.is_file():
