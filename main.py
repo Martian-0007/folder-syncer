@@ -189,7 +189,7 @@ class Synchronizer:
                         f"Comparison: File {os.path.abspath(i.name)} is already replicated"
                     )
 
-                    return
+                    continue
 
             self.logger.debug(f"Comparison: {os.path.abspath(i.path)} is not the same")
 
