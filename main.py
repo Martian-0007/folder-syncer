@@ -113,6 +113,11 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
     def _sync_folder(self, src, dst):
+        if not os.path.exists(dst):
+            self.logger.debug("Create")
+            os.mkdir(dst)
+            self.logger.info(f"Create: {self.replica_abs}")
+
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
 
@@ -120,11 +125,6 @@ class Synchronizer:
         dst_contents = os.listdir(dst)
 
         self.logger.debug(f"Comparing: {src_contents} vs. {dst_contents}")
-
-        if not os.path.exists(dst):
-            self.logger.debug("Create")
-            os.mkdir(dst)
-            self.logger.info(f"Create: {self.replica_abs}")
 
         for i in dst_entries:
             if i.name not in src_contents:
