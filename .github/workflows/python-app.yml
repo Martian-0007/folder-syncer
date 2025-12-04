@@ -13,9 +13,39 @@ permissions:
   contents: read
 
 jobs:
-  run:
+  run-linux:
 
     runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.13"
+
+    - name: Prep directories
+      run: 7z x testing.7z
+
+    - name: List dirs
+      run: ls -la
+
+    - name: Run application 1
+      run: python main.py syncer-testing/test1/source/ syncer-testing/test1/replica/ 1 99 syncer-testing/test1/log
+
+    - name: Run application 2
+      run: python main.py syncer-testing/test2/source/ syncer-testing/test2/replica/ 1 99 syncer-testing/test3/log
+
+    - name: Run application 3
+      run: python main.py syncer-testing/test3/source/ syncer-testing/test3/replica/ 1 99 syncer-testing/test3/log
+
+    - name: Clean up
+      run: rm syncer-testing -fr
+
+
+  run-windows:
+
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
