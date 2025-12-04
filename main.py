@@ -350,10 +350,9 @@ class Synchronizer:
         self.logger.debug(f"Dangling: {dangling}")
 
         if not dangling:
-            if (
-                self.source_abs
-                == os.path.commonpath([self.source_abs, symlink_path_absolute])
-            ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
+            if self.source_abs == os.path.commonpath(
+                [self.source_abs, symlink_path_absolute]
+            ):
                 self.logger.debug(f"Symlink inside source, using {symlink_path}")
                 return symlink_path
 
@@ -385,9 +384,7 @@ class Synchronizer:
     def _copy(self, src, dst):
         self.logger.debug("Copy")
         shutil.copy2(src, dst)
-        self.logger.info(
-            f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}"
-        )
+        self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
 
 def main():
