@@ -87,7 +87,7 @@ class Synchronizer:
 
         self.logger.info("Syncing...")
 
-        self._copyfolder(self.source, self.replica)
+        self._compare_folders(self.source, self.replica)
 
     def _clean(self, folder_path: str):
         """Clean the folder."""
@@ -117,6 +117,10 @@ class Synchronizer:
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
         if not os.path.exists(dst):
+            self.logger.info(
+                f"Add: {os.path.abspath(dst)}"
+            )
+
             os.mkdir(dst)
 
 
