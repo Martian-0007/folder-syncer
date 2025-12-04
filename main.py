@@ -65,6 +65,9 @@ class Synchronizer:
             self.logger.debug(
                 f"Replica {self.replica_abs} does not exist, creating directory..."
             )
+
+            self.logger.info(f"Create: {self.replica_abs}")
+
             os.mkdir(self.replica_abs)
 
         if not os.path.isdir(self.replica_abs):
@@ -218,34 +221,44 @@ class Synchronizer:
                 )
 
         elif entry.is_junction():
-            self.logger.info(
-                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-            )
-
-            os.remove(os.path.join(dst, entry.name))
+            if os.path.exists(os.path.join(dst, entry.name)):
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
+                os.remove(os.path.join(dst, entry.name))
 
             self._handle_junction(entry, src, dst)
 
         elif entry.is_symlink():
-            self.logger.info(
-                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-            )
+            if os.path.exists(os.path.join(dst, entry.name)):
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
+                os.remove(os.path.join(dst, entry.name))
 
-            os.remove(os.path.join(dst, entry.name))
             self._handle_symlink(entry, src, dst)
 
         elif entry.is_file():
-            self.logger.info(
-                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
-            )
+            if os.path.exists(os.path.join(dst, entry.name)):
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
+                os.remove(os.path.join(dst, entry.name))
 
-            os.remove(os.path.join(dst, entry.name))
             self._handle_file(entry, src, dst)
 
         else:
+            if os.path.exists(os.path.join(dst, entry.name)):
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
+                os.remove(os.path.join(dst, entry.name))
+
             self._handle_unknown_file(entry, src, dst)
 
     def _handle_junction(self, entry: os.DirEntry[str], src, dst):
+        self.logger.debug("Copy Junction")
+
         self.logger.warning(
             f"Junction in path {os.path.realpath(os.path.join(src, entry.name))}"
         )
@@ -259,30 +272,25 @@ class Synchronizer:
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
         source_link_path = os.readlink(entry.path)
 
+        self.logger.debug("Copy Symlink")
+
+        target = self._symlink_path_handler(
+            source_link_path, os.path.abspath(os.path.join(src, source_link_path))
+        )
+        name = os.path.join(dst, entry.name)
+
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
         )
 
-        self.logger.debug(
-            f"Symlink target: {
-                self._symlink_path_handler(
-                    source_link_path,
-                    os.path.abspath(os.path.join(src, source_link_path)),
-                )
-            }"
-        )
+        self.logger.debug(f"Symlink target: {target}")
 
-        self.logger.debug(
-            f"Symlink name: {os.path.abspath(os.path.join(src, source_link_path))}"
-        )
+        self.logger.debug(f"Symlink name: {name}")
 
         try:
             os.symlink(
-                self._symlink_path_handler(
-                    source_link_path,
-                    os.path.abspath(os.path.join(src, source_link_path)),
-                ),
-                os.path.join(dst, entry.name),
+                target,
+                name,
             )
 
             shutil.copystat(
@@ -292,6 +300,8 @@ class Synchronizer:
             self.logger.error(f"Failed to copy symlink: {e}, skipping...")
 
     def _handle_file(self, entry: os.DirEntry[str], src, dst):
+        self.logger.debug("Copy File")
+
         self.logger.info(
             f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
         )
@@ -299,6 +309,8 @@ class Synchronizer:
         shutil.copy2(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
+        self.logger.debug("Copy Funny File")
+
         self.logger.warning(
             f"Unknown file type: {os.path.abspath(entry.path)}, attempting copy..."
         )
