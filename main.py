@@ -122,7 +122,7 @@ class Synchronizer:
             self.logger.debug(f"Symlink inside source, using {symlink_path}")
             return symlink_path
         else:
-            self.logger.debug(
+            self.logger.warning(
                 f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
             )
             return symlink_path_absolute
@@ -165,7 +165,7 @@ class Synchronizer:
         src_contents = os.listdir(src)
         dst_contents = os.listdir(dst)
 
-        self.logger.info(f"Comparing: {src_contents} vs. {dst_contents}")
+        self.logger.debug(f"Comparing: {src_contents} vs. {dst_contents}")
 
         for i in dst_entries:
             if i.name not in src_contents:
@@ -185,62 +185,65 @@ class Synchronizer:
                     self.logger.debug(
                         f"Comparison: File {os.path.abspath(i.name)} is already replicated"
                     )
-                else:
-                    self.logger.debug(
-                        f"Comparison: {os.path.abspath(i.path)} is not the same"
-                    )
 
-                    if i.is_dir(follow_symlinks=False):
-                        if os.path.exists(os.path.join(dst, i.name)) and os.path.isdir(
-                            os.path.join(dst, i.name)
-                        ):
-                            self._compare(
-                                os.path.join(src, i.name), os.path.join(dst, i.name)
-                            )
+                    return
 
-                        elif not os.path.exists(os.path.join(dst, i.name)):
-                            self._copyfolder(
-                                os.path.join(src, i.name), os.path.join(dst, i.name)
-                            )
+            self.logger.debug(f"Comparison: {os.path.abspath(i.path)} is not the same")
 
-                        else:  # dst/i.name exists, but as a file -> delete and copy directory from source
-                            self.logger.info(
-                                f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                            )
+            self._sync_item(i, src, dst)
 
-                            os.remove(os.path.join(dst, i.name))
+    def _sync_item(self, entry: os.DirEntry[str], src, dst):
+        if entry.is_dir(follow_symlinks=False):
+            if os.path.exists(os.path.join(dst, entry.name)) and os.path.isdir(
+                os.path.join(dst, entry.name)
+            ):
+                self._compare(
+                    os.path.join(src, entry.name), os.path.join(dst, entry.name)
+                )
 
-                            self._copyfolder(
-                                os.path.join(src, i.name), os.path.join(dst, i.name)
-                            )
+            elif not os.path.exists(os.path.join(dst, entry.name)):
+                self._copyfolder(
+                    os.path.join(src, entry.name), os.path.join(dst, entry.name)
+                )
 
-                    elif i.is_junction():
-                        self.logger.info(
-                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                        )
+            else:  # dst/i.name exists, but as a file -> delete and copy directory from source
+                self.logger.info(
+                    f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+                )
 
-                        os.remove(os.path.join(dst, i.name))
+                os.remove(os.path.join(dst, entry.name))
 
-                        self._handle_junction(i, src, dst)
+                self._copyfolder(
+                    os.path.join(src, entry.name), os.path.join(dst, entry.name)
+                )
 
-                    elif i.is_symlink():
-                        self.logger.info(
-                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                        )
+        elif entry.is_junction():
+            self.logger.info(
+                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
 
-                        os.remove(os.path.join(dst, i.name))
-                        self._handle_symlink(i, src, dst)
+            os.remove(os.path.join(dst, entry.name))
 
-                    elif i.is_file():
-                        self.logger.info(
-                            f"Remove: {os.path.abspath(os.path.join(dst, i.name))}"
-                        )
+            self._handle_junction(entry, src, dst)
 
-                        os.remove(os.path.join(dst, i.name))
-                        self._handle_file(i, src, dst)
+        elif entry.is_symlink():
+            self.logger.info(
+                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
 
-                    else:
-                        self._handle_unknown_file(i, src, dst)
+            os.remove(os.path.join(dst, entry.name))
+            self._handle_symlink(entry, src, dst)
+
+        elif entry.is_file():
+            self.logger.info(
+                f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
+            )
+
+            os.remove(os.path.join(dst, entry.name))
+            self._handle_file(entry, src, dst)
+
+        else:
+            self._handle_unknown_file(entry, src, dst)
 
     def _handle_junction(self, entry: os.DirEntry[str], src, dst):
         self.logger.warning(
@@ -269,6 +272,10 @@ class Synchronizer:
             }"
         )
 
+        self.logger.debug(
+            f"Symlink name: {os.path.abspath(os.path.join(src, source_link_path))}"
+        )
+
         try:
             os.symlink(
                 self._symlink_path_handler(
@@ -278,7 +285,9 @@ class Synchronizer:
                 os.path.join(dst, entry.name),
             )
 
-            shutil.copystat(entry.path, os.path.join(dst, entry.name))
+            shutil.copystat(
+                entry.path, os.path.join(dst, entry.name), follow_symlinks=False
+            )
         except OSError as e:
             self.logger.error(f"Failed to copy symlink: {e}, skipping...")
 
