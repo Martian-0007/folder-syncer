@@ -163,7 +163,7 @@ class Synchronizer:
     def _compare_entry(self, entry: os.DirEntry[str], src, dst) -> bool:
         same = False  # by default assume source and destination are different
 
-        if entry.is_dir():
+        if entry.is_dir(follow_symlinks=False):
             # Directories need to have the files checked, not the directory objects themselves
             self.logger.debug(f"Comparison: {entry.path} is a directory")
             return same
@@ -185,9 +185,12 @@ class Synchronizer:
                 self.logger.debug(f"Comparison: symlink target: {target}")
                 self.logger.debug(f"Comparison: symlink name: {name}")
 
-                self.logger.debug(f"Comparison: source link target path: {source_link_path}")
-                self.logger.debug(f"Comparison: destination link target path: {source_link_path}")
-
+                self.logger.debug(
+                    f"Comparison: source link target path: {source_link_path}"
+                )
+                self.logger.debug(
+                    f"Comparison: destination link target path: {source_link_path}"
+                )
 
                 if destination_link_path == target and target is not None:
                     same = True
@@ -226,9 +229,12 @@ class Synchronizer:
                     f"Remove: {os.path.abspath(os.path.join(dst, entry.name))}"
                 )
 
-                self._copyfolder(
-                    os.path.join(src, entry.name), os.path.join(dst, entry.name)
-                )
+                if entry.is_junction():
+                    self._handle_junction(entry, src, dst)
+                else:
+                    self._copyfolder(
+                        os.path.join(src, entry.name), os.path.join(dst, entry.name)
+                    )
 
         else:
             if os.path.exists(os.path.join(dst, entry.name)):
