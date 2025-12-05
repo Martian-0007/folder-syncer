@@ -19,7 +19,7 @@ class Synchronizer:
         interval_secs: int = 30,
         count: int = 1,
         dangle: bool = False,
-        funny: bool = False,
+        odd: bool = False,
     ):
         """Initialize the Synchronizer attributes for later use.
 
@@ -29,14 +29,15 @@ class Synchronizer:
             interval_secs: interval between two synchronizations in seconds
             count: count of synchronizations
             dangle: copy dangling symlinks too
-            funny: try to copy unknown files
+            odd: try to copy unknown files
         """
         self.source: str = source
         self.replica: str = replica
         self.interval: int = interval_secs
         self.count: int = count
         self.dangle: bool = dangle
-        self.funny: bool = funny
+        self.odd: bool = odd
+        self.odd: bool = odd
 
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
@@ -296,10 +297,10 @@ class Synchronizer:
         self._copy(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
-        self.logger.debug("Copy Funny File")
+        self.logger.debug("Copy Odd File")
 
-        if not self.funny:
-            self.logger.debug("Funny files disabled, skipping...")
+        if not self.odd:
+            self.logger.debug("Odd files disabled, skipping...")
 
             self.logger.warning(
                 f"Unknown file type: {os.path.abspath(entry.path)}, skipping..."
@@ -336,14 +337,15 @@ class Synchronizer:
         Returns None when symlink is dangling and dangling symlinks are not enabled.
 
         Args:
-            symlink_path: path of symlink
-            symlink_path_absolute: absolute path of symlink
+            symlink_path: path of symlink target
+            symlink_path_absolute: absolute path of symlink target
 
         Returns:
             str: path to which the symlink should point
             None: incorrectly dangling symlink
         """
-        self.logger.debug(f"Symlink absolute path: {symlink_path_absolute}")
+        self.logger.debug(f"Symlink target path: {symlink_path}")
+        self.logger.debug(f"Symlink target absolute path: {symlink_path_absolute}")
 
         dangling = not os.path.exists(symlink_path_absolute)
 
@@ -374,9 +376,9 @@ class Synchronizer:
 
             else:
                 self.logger.warning(
-                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
+                    f"Symlink path leads outside of source folder, but --dangle-symlinks is enabled, using {symlink_path}"
                 )
-                return symlink_path_absolute
+                return symlink_path
 
         else:
             return None
@@ -422,8 +424,8 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--funny-files",
-        help="Try to sync unknown files (default: skip)",
+        "--odd-files",
+        help="Try to sync unknown files (default: skip/resolve)",
         action="store_true",
     )
     # Maybe TODO: Follow symlinks
@@ -473,7 +475,7 @@ def main():
         args.interval_seconds,
         args.count,
         args.dangle_symlinks,
-        args.funny_files,
+        args.odd_files,
     )
 
     try:
