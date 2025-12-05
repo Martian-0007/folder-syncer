@@ -68,15 +68,19 @@ class Synchronizer:
             )
             quit()
 
-        if not os.path.isdir(self.replica_abs):
-            self.logger.error(
-                f"Replica {self.replica_abs} is not a directory! Quitting"
-            )
-            quit()
-
         self.logger.info("Syncing...")
 
-        self._sync_folder(self.source, self.replica)
+        try:
+            self._sync_folder(self.source, self.replica)
+        except NotADirectoryError as e:
+            if not os.path.isdir(self.replica_abs):
+                self.logger.error(
+                    f"Replica {self.replica_abs} exists, but is not a directory! Quitting"
+                )
+                quit()
+
+            else:
+                raise e
 
     def _copyfolder(self, src, dst):
         """Copy source folder to destination.
@@ -93,20 +97,7 @@ class Synchronizer:
             self.logger.info(f"Create: {os.path.abspath(dst)}")
 
         for i in contents:
-            if i.is_junction():
-                self._handle_junction(i, src, dst)
-
-            elif i.is_dir(follow_symlinks=False):
-                self._copyfolder(os.path.join(src, i.name), os.path.join(dst, i.name))
-
-            elif i.is_symlink():
-                self._handle_symlink(i, src, dst)
-
-            elif i.is_file():
-                self._handle_file(i, src, dst)
-
-            else:
-                self._handle_unknown_file(i, src, dst)
+            self._sync_item(i, src, dst)
 
         shutil.copystat(src, dst, follow_symlinks=False)
 
@@ -116,7 +107,11 @@ class Synchronizer:
         if not os.path.exists(dst):
             self.logger.debug("Create")
             os.mkdir(dst)
-            self.logger.info(f"Create: {self.replica_abs}")
+            self.logger.info(f"Create: {dst}")
+
+        if not os.path.isdir(dst):
+            self.logger.error(f"Folder {dst} is not a directory!")
+            raise NotADirectoryError
 
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
@@ -419,19 +414,27 @@ def main():
 
     logger = logging.getLogger(__name__)
 
-    fh = logging.FileHandler(args.logfile, "w")
-    fh.setLevel(logging.DEBUG)
+    file_handler = logging.FileHandler(args.logfile, "w")
+    file_handler.setLevel(logging.DEBUG)
 
-    ch = logging.StreamHandler(sys.stderr)
-    ch.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-        handlers=[ch, fh],
+        handlers=[console_handler, file_handler],
     )
 
     logger.debug("Logger initialized")
+
+    if args.interval_seconds < 0:
+        logger.error("Interval must be a positive integer!")
+        quit()
+
+    if args.count < 0:
+        logger.error("Count must be a positive integer!")
+        quit()
 
     if not os.chmod in os.supports_follow_symlinks:
         logger.warning("Cannot modify permission bits of symlinks")
@@ -442,14 +445,6 @@ def main():
             logger.warning("Cannot modify flags of symlinks")
     except AttributeError:
         pass  # os.chflags is not supported on all platforms
-
-    if args.interval_seconds < 0:
-        logger.error("Interval must be a positive integer!")
-        quit()
-
-    if args.count < 0:
-        logger.error("Count must be a positive integer!")
-        quit()
 
     syncer = Synchronizer(
         args.source,
