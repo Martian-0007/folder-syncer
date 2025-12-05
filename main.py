@@ -19,6 +19,7 @@ class Synchronizer:
         interval_secs: int = 30,
         count: int = 1,
         dangle: bool = False,
+        funny: bool = False,
     ):
         """Initialize the Synchronizer attributes for later use.
 
@@ -28,12 +29,14 @@ class Synchronizer:
             interval_secs: interval between two synchronizations in seconds
             count: count of synchronizations
             dangle: copy dangling symlinks too
+            funny: try to copy unknown files
         """
         self.source: str = source
         self.replica: str = replica
         self.interval: int = interval_secs
         self.count: int = count
         self.dangle: bool = dangle
+        self.funny: bool = funny
 
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
@@ -295,6 +298,15 @@ class Synchronizer:
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
         self.logger.debug("Copy Funny File")
 
+        if not self.funny:
+            self.logger.debug("Funny files disabled, skipping...")
+
+            self.logger.warning(
+                f"Unknown file type: {os.path.abspath(entry.path)}, skipping..."
+            )
+
+            return
+
         self.logger.warning(
             f"Unknown file type: {os.path.abspath(entry.path)}, attempting copy..."
         )
@@ -389,7 +401,7 @@ class Synchronizer:
 
 
 def main():
-    """Main function."""
+    """Run Folder Syncer."""
     parser = argparse.ArgumentParser(
         description="Folder syncer for Veeam technical assessment"
     )
@@ -407,6 +419,11 @@ def main():
     parser.add_argument(
         "--dangle-symlinks",
         help="Keep dangling symlinks (default: skip)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--funny-files",
+        help="Try to sync unknown files (default: skip)",
         action="store_true",
     )
     # Maybe TODO: Follow symlinks
@@ -436,7 +453,6 @@ def main():
     if args.interval_seconds < 0:
         logger.error("Interval must be a positive integer!")
         quit()
-
     if args.count < 0:
         logger.error("Count must be a positive integer!")
         quit()
@@ -457,6 +473,7 @@ def main():
         args.interval_seconds,
         args.count,
         args.dangle_symlinks,
+        args.funny_files,
     )
 
     try:
