@@ -18,7 +18,7 @@ class Synchronizer:
         replica: str,
         interval_secs: int = 30,
         count: int = 1,
-        dangle: bool = False,
+        dont_dangle: bool = False,
         odd: bool = False,
     ):
         """Initialize the Synchronizer class.
@@ -28,14 +28,14 @@ class Synchronizer:
             replica: replica folder
             interval_secs: interval between two synchronizations in seconds
             count: count of synchronizations
-            dangle: copy dangling symlinks too
+            dont_dangle: don't copy dangling symlinks too
             odd: try to copy unknown files
         """
         self.source: str = source
         self.replica: str = replica
         self.interval: int = interval_secs
         self.count: int = count
-        self.dangle: bool = dangle
+        self.dangle: bool = not dont_dangle
         self.odd: bool = odd
         self.odd: bool = odd
 
@@ -442,16 +442,17 @@ def main():
     # Extras
     parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
     parser.add_argument(
-        "--dangle-symlinks",
-        help="Keep dangling symlinks (default: skip)",
+        "--no-dangling-symlinks",
+        help="Don't keep dangling symlinks (default: keep)",
         action="store_true",
-    )
+    ) # Initially inverted, but then the folders wouldn't be identical...
     parser.add_argument(
         "--odd-files",
         help="Try to sync unknown files (default: skip/resolve)",
         action="store_true",
     )
     # Maybe TODO: Follow symlinks
+    # Not implemented: folders are supposed to be identical, so symlinks should be in both
 
     try:
         args = parser.parse_args()
@@ -497,7 +498,7 @@ def main():
         args.replica,
         args.interval_seconds,
         args.count,
-        args.dangle_symlinks,
+        args.dont_dangle_symlinks,
         args.odd_files,
     )
 
