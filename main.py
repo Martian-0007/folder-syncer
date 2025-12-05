@@ -72,6 +72,7 @@ class Synchronizer:
 
         try:
             self._sync_folder(self.source, self.replica)
+
         except NotADirectoryError as e:
             if not os.path.isdir(self.replica_abs):
                 self.logger.error(
@@ -267,12 +268,10 @@ class Synchronizer:
                     name,
                 )
 
-                shutil.copystat(
-                    entry.path, os.path.join(dst, entry.name), follow_symlinks=False
-                )
+                shutil.copystat(entry.path, name, follow_symlinks=False)
 
                 self.logger.info(
-                    f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(os.path.join(dst, entry.name))}"
+                    f"Copy: {os.path.abspath(entry.path)} to {os.path.abspath(name)}"
                 )
 
             else:
@@ -372,14 +371,20 @@ class Synchronizer:
 
     def _copy(self, src, dst):
         self.logger.debug("Copy")
+
         shutil.copy2(src, dst)
+
         self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
 
     def _remove(self, path):
         self.logger.debug("Remove")
-        shutil.rmtree(os.path.join(path)) if os.path.isdir(
-            os.path.join(path)
-        ) else os.remove(os.path.join(path))
+
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+
+        else:
+            os.remove(path)
+
         self.logger.info(f"Remove: {os.path.abspath(path)}")
 
 
