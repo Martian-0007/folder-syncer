@@ -4,6 +4,7 @@ import argparse
 import filecmp
 import logging
 import os
+import pathlib
 import shutil
 import sys
 import time
@@ -69,6 +70,15 @@ class Synchronizer:
         if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
             self.logger.error(
                 f"Source {self.source_abs} is not a directory or doesn't exist! Quitting"
+            )
+            quit()
+
+        if os.path.commonpath([self.source_abs, self.replica_abs]) in [
+            self.source_abs,
+            self.replica_abs,
+        ]:
+            self.logger.error(
+                f"Replica {self.replica_abs} or source {self.source_abs} is relative to the other! Quitting"
             )
             quit()
 
@@ -351,21 +361,8 @@ class Synchronizer:
 
         self.logger.debug(f"Dangling: {dangling}")
 
-        if not dangling:
-            if self.source_abs == os.path.commonpath(
-                [self.source_abs, symlink_path_absolute]
-            ):
-                self.logger.debug(f"Symlink inside source, using {symlink_path}")
-                return symlink_path
-
-            else:
-                self.logger.warning(
-                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
-                )
-                return symlink_path_absolute
-
-        elif self.dangle:
-            self.logger.warning("Symlink is dangling, but --dangle-symlinks is enabled")
+        if self.dangle:
+            self.logger.warning("Symlink --dangle-symlinks is enabled")
 
             if (
                 self.source_abs
@@ -379,6 +376,19 @@ class Synchronizer:
                     f"Symlink path leads outside of source folder, but --dangle-symlinks is enabled, using {symlink_path}"
                 )
                 return symlink_path
+
+        elif not dangling:
+            if self.source_abs == os.path.commonpath(
+                [self.source_abs, symlink_path_absolute]
+            ):
+                self.logger.debug(f"Symlink inside source, using {symlink_path}")
+                return symlink_path
+
+            else:
+                self.logger.warning(
+                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
+                )
+                return symlink_path_absolute
 
         else:
             return None
@@ -411,7 +421,7 @@ def main():
     parser.add_argument("source", help="Path of the source folder")
     parser.add_argument("replica", help="Path of the replica folder")
     parser.add_argument(
-        "interval_seconds", help="Time between synchronizations in seconds", type=int
+        "interval_seconds", help="Time between synchronizations in seconds", type=float
     )
     parser.add_argument("count", help="Number of synchronizations", type=int)
     parser.add_argument("logfile", help="Path to log file")
@@ -453,7 +463,7 @@ def main():
     logger.debug("Logger initialized")
 
     if args.interval_seconds < 0:
-        logger.error("Interval must be a positive integer!")
+        logger.error("Interval must be positive!")
         quit()
     if args.count < 0:
         logger.error("Count must be a positive integer!")
