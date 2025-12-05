@@ -4,7 +4,6 @@ import argparse
 import filecmp
 import logging
 import os
-import pathlib
 import shutil
 import sys
 import time
@@ -174,6 +173,7 @@ class Synchronizer:
                 target = self._symlink_path_handler(
                     source_link_path,
                     os.path.abspath(os.path.join(src, source_link_path)),
+                    entry,
                 )
                 name = os.path.join(dst, entry.name)
 
@@ -209,6 +209,8 @@ class Synchronizer:
         return same
 
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
+        self.logger.debug(f"Item sync: Destination {os.path.join(dst, entry.name)}")
+
         if entry.is_junction():
             if os.path.exists(os.path.join(dst, entry.name)):
                 self._remove(os.path.join(dst, entry.name))
@@ -239,7 +241,9 @@ class Synchronizer:
                     )
 
         else:
-            if os.path.exists(os.path.join(dst, entry.name)):
+            if os.path.lexists(os.path.join(dst, entry.name)):
+                self.logger.debug(f"Item sync: Exists: {os.path.join(dst, entry.name)}")
+
                 self._remove(os.path.join(dst, entry.name))
 
             if entry.is_symlink():
@@ -266,7 +270,9 @@ class Synchronizer:
         self.logger.debug("Copy Symlink")
 
         target = self._symlink_path_handler(
-            source_link_path, os.path.abspath(os.path.join(src, source_link_path))
+            source_link_path,
+            os.path.abspath(os.path.join(os.path.abspath(src), source_link_path)),
+            entry,
         )
         name = os.path.join(dst, entry.name)
 
@@ -293,7 +299,7 @@ class Synchronizer:
                     "Symlink is dangling and --dangle-symlinks is not enabled, skipping..."
                 )
 
-                if os.path.exists(os.path.join(dst, entry.name)):
+                if os.path.lexists(os.path.join(dst, entry.name)):
                     # symlink could be the same as source but dangling -> remove from destination
                     # (e.g. symlink became dangling between syncs)
                     self._remove(os.path.join(dst, entry.name))
@@ -340,55 +346,75 @@ class Synchronizer:
             )
             self.logger.info(f"Skipping {os.path.abspath(entry.path)}")
 
-    def _symlink_path_handler(self, symlink_path, symlink_path_absolute) -> str | None:
+    def _symlink_path_handler(
+        self,
+        symlink_target_path,
+        symlink_target_path_absolute,
+        entry: os.DirEntry[str],
+        src=None,
+        dst=None,
+    ) -> str | None:
         """Check if a symlink is pointing inside the source folder.
 
         Returns absolute path of the original link in case symlink points outside the source folder.
         Returns None when symlink is dangling and dangling symlinks are not enabled.
 
         Args:
-            symlink_path: path of symlink target
-            symlink_path_absolute: absolute path of symlink target
+            entry: os.DirEntry of the symlink
+            src: current working source path
+            dst: current working destination path
+            symlink_target_path: path of symlink target
+            symlink_target_path_absolute: absolute path of symlink target
 
         Returns:
             str: path to which the symlink should point
             None: incorrectly dangling symlink
         """
-        self.logger.debug(f"Symlink target path: {symlink_path}")
-        self.logger.debug(f"Symlink target absolute path: {symlink_path_absolute}")
+        self.logger.debug(f"Symlink target path: {symlink_target_path}")
+        self.logger.debug(
+            f"Symlink target absolute path: {symlink_target_path_absolute}"
+        )
 
-        dangling = not os.path.exists(symlink_path_absolute)
+        dangling = not os.path.lexists(symlink_target_path_absolute)
+
+        # Allow reversing symlink translation
+        target_abs_non_normal = os.path.join(
+            os.path.abspath(entry.path), ".", symlink_target_path
+        )
+
+        self.logger.debug(
+            f"Non-normalized absolute target path: {target_abs_non_normal}"
+        )
 
         self.logger.debug(f"Dangling: {dangling}")
 
         if self.dangle:
             self.logger.warning("Symlink --dangle-symlinks is enabled")
 
-            if (
-                self.source_abs
-                == os.path.commonpath([self.source_abs, symlink_path_absolute])
-            ):  # alternatively `self.source_abs in symlink_path_abs[:len(self.source_abs)]`
-                self.logger.debug(f"Symlink inside source, using {symlink_path}")
-                return symlink_path
+            if self.source_abs == os.path.commonpath(
+                [self.source_abs, symlink_target_path_absolute]
+            ):
+                self.logger.debug(f"Symlink inside source, using {symlink_target_path}")
+                return symlink_target_path
 
             else:
                 self.logger.warning(
-                    f"Symlink path leads outside of source folder, but --dangle-symlinks is enabled, using {symlink_path}"
+                    f"Symlink path leads outside of source folder, but --dangle-symlinks is enabled, using {symlink_target_path}"
                 )
-                return symlink_path
+                return symlink_target_path
 
         elif not dangling:
             if self.source_abs == os.path.commonpath(
-                [self.source_abs, symlink_path_absolute]
+                [self.source_abs, symlink_target_path_absolute]
             ):
-                self.logger.debug(f"Symlink inside source, using {symlink_path}")
-                return symlink_path
+                self.logger.debug(f"Symlink inside source, using {symlink_target_path}")
+                return symlink_target_path
 
             else:
                 self.logger.warning(
-                    f"Symlink path leads outside of source folder, using absolute path: {symlink_path_absolute}"
+                    f"Symlink path leads outside of source folder, using absolute non-normalized path: {target_abs_non_normal}"
                 )
-                return symlink_path_absolute
+                return target_abs_non_normal
 
         else:
             return None
@@ -403,7 +429,7 @@ class Synchronizer:
     def _remove(self, path):
         self.logger.debug("Remove")
 
-        if os.path.isdir(path):
+        if os.path.isdir(path) and not os.path.islink(path):
             shutil.rmtree(path)
 
         else:
