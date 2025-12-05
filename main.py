@@ -153,7 +153,7 @@ class Synchronizer:
                     os.path.abspath(os.path.join(src, source_link_path)),
                     entry,
                     src,
-                    dst
+                    dst,
                 )
                 name = os.path.join(dst, entry.name)
 
@@ -245,16 +245,16 @@ class Synchronizer:
         self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
-        source_link_path = os.readlink(entry.path)
-
         self.logger.debug("Copy Symlink")
+
+        source_link_path = os.readlink(entry.path)
 
         target = self._symlink_path_handler(
             source_link_path,
             os.path.abspath(os.path.join(os.path.abspath(src), source_link_path)),
             entry,
             src,
-            dst
+            dst,
         )
         name = os.path.join(dst, entry.name)
 
@@ -278,7 +278,7 @@ class Synchronizer:
 
             else:
                 self.logger.warning(
-                    "Symlink is dangling and --dangle-symlinks is not enabled, skipping..."
+                    "Symlink is dangling and --dont-dangle-symlinks is enabled, skipping..."
                 )
 
                 if os.path.lexists(os.path.join(dst, entry.name)):
@@ -360,9 +360,9 @@ class Synchronizer:
         dangling = not os.path.lexists(symlink_target_path_absolute)
 
         # Allow reversing symlink translation
-        target_abs_non_normal = str(os.path.join(
-            os.path.abspath(src), ".", symlink_target_path
-        ))
+        target_abs_non_normal = str(
+            os.path.join(os.path.abspath(src), ".", symlink_target_path)
+        )
 
         self.logger.debug(
             f"Non-normalized absolute target path: {target_abs_non_normal}"
@@ -371,7 +371,7 @@ class Synchronizer:
         self.logger.debug(f"Dangling: {dangling}")
 
         if self.dangle:
-            self.logger.warning("Symlink --dangle-symlinks is enabled")
+            self.logger.debug("Symlink: --dont-dangle-symlinks is disabled")
 
             if self.source_abs == os.path.commonpath(
                 [self.source_abs, symlink_target_path_absolute]
@@ -380,8 +380,8 @@ class Synchronizer:
                 return symlink_target_path
 
             else:
-                self.logger.warning(
-                    f"Symlink path leads outside of source folder, but --dangle-symlinks is enabled, using {symlink_target_path}"
+                self.logger.debug(
+                    f"Symlink path leads outside of source folder, but --dont-dangle-symlinks is disabled, using {symlink_target_path}"
                 )
                 return symlink_target_path
 
@@ -442,10 +442,10 @@ def main():
     # Extras
     parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
     parser.add_argument(
-        "--no-dangling-symlinks",
+        "--dont-dangle-symlinks",
         help="Don't keep dangling symlinks or translate where possible (default: keep)",
         action="store_true",
-    ) # Initially inverted, but then the folders wouldn't be identical...
+    )  # Initially inverted, but then the folders wouldn't be identical...
     parser.add_argument(
         "--odd-files",
         help="Try to sync unknown files (default: skip/resolve)",
