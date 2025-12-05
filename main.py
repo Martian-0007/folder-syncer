@@ -443,7 +443,7 @@ def main():
     parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
     parser.add_argument(
         "--no-dangling-symlinks",
-        help="Don't keep dangling symlinks (default: keep)",
+        help="Don't keep dangling symlinks or translate where possible (default: keep)",
         action="store_true",
     ) # Initially inverted, but then the folders wouldn't be identical...
     parser.add_argument(
