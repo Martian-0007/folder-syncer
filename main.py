@@ -21,7 +21,7 @@ class Synchronizer:
         dangle: bool = False,
         odd: bool = False,
     ):
-        """Initialize the Synchronizer attributes for later use.
+        """Initialize the Synchronizer class.
 
         Args:
             source: source folder
@@ -96,36 +96,14 @@ class Synchronizer:
             else:
                 raise e
 
-    def _copyfolder(self, src, dst):
-        """Copy source folder to destination.
-
-        Args:
-            src: path to source folder
-            dst: path to destination folder
-        """
-        contents = os.scandir(src)
-
-        if not os.path.exists(dst):
-            self.logger.debug("Create")
-            os.mkdir(dst)
-            self.logger.info(f"Create: {os.path.abspath(dst)}")
-
-        for i in contents:
-            self._sync_item(i, src, dst)
-
-        shutil.copystat(src, dst, follow_symlinks=False)
-
-        self.logger.info(f"Copy: {os.path.abspath(src)} to {os.path.abspath(dst)}")
-
     def _sync_folder(self, src, dst):
-        if not os.path.exists(dst):
-            self.logger.debug("Create")
-            os.mkdir(dst)
-            self.logger.info(f"Create: {dst}")
+        if not os.path.lexists(dst):
+            self._mkdir(dst)
 
-        if not os.path.isdir(dst):
-            self.logger.error(f"Folder {dst} is not a directory!")
-            raise NotADirectoryError
+        if not os.path.isdir(dst) or os.path.islink(dst):
+            self.logger.warning(f"Folder {dst} is not a directory! Recreating")
+            self._remove(dst)
+            self._mkdir(dst)
 
         src_entries = os.scandir(src)
         dst_entries = os.scandir(dst)
@@ -174,6 +152,8 @@ class Synchronizer:
                     source_link_path,
                     os.path.abspath(os.path.join(src, source_link_path)),
                     entry,
+                    src,
+                    dst
                 )
                 name = os.path.join(dst, entry.name)
 
@@ -226,7 +206,7 @@ class Synchronizer:
                 )
 
             elif not os.path.exists(os.path.join(dst, entry.name)):
-                self._copyfolder(
+                self._sync_folder(
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
@@ -236,7 +216,7 @@ class Synchronizer:
                 if entry.is_junction():
                     self._handle_junction(entry, src, dst)
                 else:
-                    self._copyfolder(
+                    self._sync_folder(
                         os.path.join(src, entry.name), os.path.join(dst, entry.name)
                     )
 
@@ -273,6 +253,8 @@ class Synchronizer:
             source_link_path,
             os.path.abspath(os.path.join(os.path.abspath(src), source_link_path)),
             entry,
+            src,
+            dst
         )
         name = os.path.join(dst, entry.name)
 
@@ -351,7 +333,7 @@ class Synchronizer:
         symlink_target_path,
         symlink_target_path_absolute,
         entry: os.DirEntry[str],
-        src=None,
+        src,
         dst=None,
     ) -> str | None:
         """Check if a symlink is pointing inside the source folder.
@@ -379,7 +361,7 @@ class Synchronizer:
 
         # Allow reversing symlink translation
         target_abs_non_normal = os.path.join(
-            os.path.abspath(entry.path), ".", symlink_target_path
+            os.path.abspath(src), ".", symlink_target_path
         )
 
         self.logger.debug(
@@ -436,6 +418,11 @@ class Synchronizer:
             os.remove(path)
 
         self.logger.info(f"Remove: {os.path.abspath(path)}")
+
+    def _mkdir(self, dst):
+        self.logger.debug("Create")
+        os.mkdir(dst)
+        self.logger.info(f"Create: {dst}")
 
 
 def main():
