@@ -249,6 +249,15 @@ class Synchronizer:
 
         source_link_path = os.readlink(entry.path)
 
+        target_is_dir = False  # assume link points to a file
+        target_is_dir = os.path.isdir(entry.path)  # os.path.isdir follows symlinks
+        # On Windows there seems to be no reasonable way to differentiate between an empty
+        # file symlink and an empty directory symlink
+        if target_is_dir:
+            self.logger.debug(f"Symlink {entry.path} points to a directory")
+        else:
+            self.logger.debug(f"Symlink {entry.path} doesn't point to a directory")
+
         target = self._symlink_path_handler(
             source_link_path,
             os.path.abspath(os.path.join(os.path.abspath(src), source_link_path)),
@@ -265,10 +274,7 @@ class Synchronizer:
             if target is not None:
                 self.logger.debug("Copy")
 
-                os.symlink(
-                    target,
-                    name,
-                )
+                os.symlink(target, name, target_is_dir)
 
                 shutil.copystat(entry.path, name, follow_symlinks=False)
 
@@ -465,7 +471,7 @@ def main():
     file_handler = logging.FileHandler(args.logfile, "w")
     file_handler.setLevel(logging.DEBUG)
 
-    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     logging.basicConfig(
