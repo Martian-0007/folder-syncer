@@ -342,11 +342,11 @@ class Synchronizer:
         Returns None when symlink is dangling and dangling symlinks are not enabled.
 
         Args:
+            symlink_target_path: path of symlink target
+            symlink_target_path_absolute: absolute path of symlink target
             entry: os.DirEntry of the symlink
             src: current working source path
             dst: current working destination path
-            symlink_target_path: path of symlink target
-            symlink_target_path_absolute: absolute path of symlink target
 
         Returns:
             str: path to which the symlink should point
@@ -360,9 +360,9 @@ class Synchronizer:
         dangling = not os.path.lexists(symlink_target_path_absolute)
 
         # Allow reversing symlink translation
-        target_abs_non_normal = os.path.join(
+        target_abs_non_normal = str(os.path.join(
             os.path.abspath(src), ".", symlink_target_path
-        )
+        ))
 
         self.logger.debug(
             f"Non-normalized absolute target path: {target_abs_non_normal}"
