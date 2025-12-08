@@ -41,6 +41,8 @@ class Synchronizer:
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
 
+        self.encountered_inodes = {}
+
         self.logger = logging.getLogger(__name__)
 
         self.logger.info(f"Source: {self.source}")
@@ -197,6 +199,16 @@ class Synchronizer:
             dst: current working destination path
         """
         self.logger.debug(f"Item sync: Destination {os.path.join(dst, entry.name)}")
+
+        if entry.inode in self.encountered_inodes:
+            self.logger.warning(
+                f"{entry.path} was already encountered in {self.encountered_inodes[entry.inode]}, skipping!"
+            )
+
+            return
+
+        else:
+            self.encountered_inodes[entry.inode] = entry.path
 
         if entry.is_junction():
             if os.path.exists(os.path.join(dst, entry.name)):
