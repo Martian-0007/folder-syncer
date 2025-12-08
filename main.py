@@ -38,18 +38,18 @@ class Synchronizer:
         self.dangle: bool = not dont_dangle
         self.odd: bool = odd
 
-        self.source_abs = os.path.abspath(self.source)
-        self.replica_abs = os.path.abspath(self.replica)
+        self.source_real = os.path.realpath(self.source)
+        self.replica_real = os.path.realpath(self.replica)
 
         self.encountered_inodes = {}
 
         self.logger = logging.getLogger(__name__)
 
         self.logger.info(f"Source: {self.source}")
-        self.logger.debug(f"Source absolute: {self.source_abs}")
+        self.logger.debug(f"Source real: {self.source_real}")
 
         self.logger.info(f"Replica: {self.replica}")
-        self.logger.debug(f"Replica absolute: {self.replica_abs}")
+        self.logger.debug(f"Replica real: {self.replica_real}")
 
         self.logger.debug(f"Interval: {self.interval} s")
         self.logger.debug(f"Count: {self.count}")
@@ -69,30 +69,30 @@ class Synchronizer:
 
     def _sync(self):
         """Synchronize source folder to replica folder."""
-        if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
+        if not os.path.exists(self.source_real) or not os.path.isdir(self.source_real):
             self.logger.error(
-                f"Source {self.source_abs} is not a directory or doesn't exist! Quitting"
+                f"Source {self.source_real} is not a directory or doesn't exist! Quitting"
             )
             quit()
 
-        if os.path.commonpath([self.source_abs, self.replica_abs]) in [
-            self.source_abs,
-            self.replica_abs,
+        if os.path.commonpath([self.source_real, self.replica_real]) in [
+            self.source_real,
+            self.replica_real,
         ]:
             self.logger.error(
-                f"Replica {self.replica_abs} or source {self.source_abs} is relative to the other! Quitting"
+                f"Replica {self.replica_real} or source {self.source_real} is relative to the other! Quitting"
             )
             quit()
 
         self.logger.info("Syncing...")
 
         try:
-            self._sync_folder(self.source, self.replica)
+            self._sync_folder(self.source_real, self.replica_real)
 
         except NotADirectoryError as e:
-            if not os.path.isdir(self.replica_abs):
+            if not os.path.isdir(self.replica_real):
                 self.logger.error(
-                    f"Replica {self.replica_abs} exists, but is not a directory! Quitting"
+                    f"Replica {self.replica_real} exists, but is not a directory! Quitting"
                 )
                 quit()
 
@@ -433,8 +433,8 @@ class Synchronizer:
         if self.dangle:
             self.logger.debug("Symlink: --dont-dangle-symlinks is disabled")
 
-            if self.source_abs == os.path.commonpath(
-                [self.source_abs, symlink_target_path_absolute]
+            if self.source_real == os.path.commonpath(
+                [self.source_real, symlink_target_path_absolute]
             ):
                 self.logger.debug(f"Symlink inside source, using {symlink_target_path}")
 
@@ -446,8 +446,8 @@ class Synchronizer:
             return symlink_target_path
 
         elif not dangling:
-            if self.source_abs == os.path.commonpath(
-                [self.source_abs, symlink_target_path_absolute]
+            if self.source_real == os.path.commonpath(
+                [self.source_real, symlink_target_path_absolute]
             ):
                 self.logger.debug(f"Symlink inside source, using {symlink_target_path}")
                 return symlink_target_path
