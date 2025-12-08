@@ -128,7 +128,7 @@ class Synchronizer:
                     f"{i.path} was already encountered in {self.encountered_inodes[i.inode]}, skipping!"
                 )
 
-                return
+                continue
 
             else:
                 self.encountered_inodes[i.inode] = i.path
