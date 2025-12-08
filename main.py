@@ -268,6 +268,14 @@ class Synchronizer:
             f"Junction in path {os.path.abspath(os.path.join(src, entry.name))}, recursing as regular folder..."
         )
 
+        real_path = os.path.realpath(entry.path)
+
+        self.logger.debug(f"Junction: real path: {real_path}")
+
+        if os.path.realpath(src) in real_path:
+            self.logger.warning(f"Junction {entry.path} is recursive! Skipping")
+            return
+
         self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
