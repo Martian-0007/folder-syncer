@@ -63,6 +63,8 @@ class Synchronizer:
             if i < self.count - 1:  # no need to sleep on the last sync
                 time.sleep(self.interval)
 
+        self.logger.info("Folder Syncer Finished")
+
     def _sync(self):
         """Synchronize source folder to replica folder."""
         if not os.path.exists(self.source_abs) or not os.path.isdir(self.source_abs):
