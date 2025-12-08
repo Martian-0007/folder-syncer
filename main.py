@@ -123,15 +123,24 @@ class Synchronizer:
         for i in src_entries:
             self.logger.debug(f"Syncing entry: {i}: Inode {i.inode()}")
 
-            if i.inode() in self.encountered_inodes.keys():
-                self.logger.warning(
-                    f"{i.path} was already encountered in {self.encountered_inodes[i.inode()]}, skipping!"
-                )
-
-                continue
-
-            else:
-                self.encountered_inodes[i.inode()] = i.path
+            # Implementation of inode checking for hardlink recursion
+            #
+            # However, I was unable to find a way to make this work
+            # with junction handling
+            #
+            # So the decision was to work with the assumption
+            # of a tree-ish like structure and ignore
+            # hardlink recursion for the time being
+            #
+            # if i.inode() in self.encountered_inodes.keys():
+            #     self.logger.warning(
+            #         f"{i.path} was already encountered in {self.encountered_inodes[i.inode()]}, skipping!"
+            #     )
+            #
+            #     continue
+            #
+            # else:
+            #     self.encountered_inodes[i.inode()] = i.path
 
             if i.name in dst_contents:
                 same = self._compare_entry(i, src, dst)
@@ -265,7 +274,7 @@ class Synchronizer:
         self.logger.debug("Copy Junction")
 
         self.logger.warning(
-            f"Junction in path {os.path.abspath(os.path.join(src, entry.name))}, recursing as regular folder..."
+            f"Junction in path {os.path.abspath(os.path.join(src, entry.name))}, attempting recurse as a regular folder..."
         )
 
         real_path = os.path.realpath(entry.path)
