@@ -121,17 +121,17 @@ class Synchronizer:
                 self._remove(os.path.join(dst, i.name))
 
         for i in src_entries:
-            self.logger.debug(f"Syncing entry: {i}")
+            self.logger.debug(f"Syncing entry: {i}: Inode {i.inode()}")
 
-            if i.inode in self.encountered_inodes.keys():
+            if i.inode() in self.encountered_inodes.keys():
                 self.logger.warning(
-                    f"{i.path} was already encountered in {self.encountered_inodes[i.inode]}, skipping!"
+                    f"{i.path} was already encountered in {self.encountered_inodes[i.inode()]}, skipping!"
                 )
 
                 continue
 
             else:
-                self.encountered_inodes[i.inode] = i.path
+                self.encountered_inodes[i.inode()] = i.path
 
             if i.name in dst_contents:
                 same = self._compare_entry(i, src, dst)
