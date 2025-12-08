@@ -276,6 +276,12 @@ class Synchronizer:
             self.logger.warning(f"Junction {entry.path} is recursive! Skipping")
             return
 
+        if not os.path.exists(real_path):
+            self.logger.warning(
+                f"Junction {entry.path} target {real_path} does not exist! Skipping"
+            )
+            return
+
         self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
