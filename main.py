@@ -134,10 +134,10 @@ class Synchronizer:
             self._sync_item(i, src, dst)
 
     def _compare_entry(self, entry: os.DirEntry[str], src, dst) -> bool:
-        same = False  # by default assume source and destination are different
+        same = False  # By default, assume source and destination are different
 
         if entry.is_dir(follow_symlinks=False):
-            # Directories need to have the files checked, not the directory objects themselves
+            # Directories need to have the contents checked, not the directory objects themselves
             self.logger.debug(f"Comparison: {entry.path} is a directory")
             return same
 
@@ -182,12 +182,18 @@ class Synchronizer:
                 # Also takes care of os.stat() signatures
         except FileNotFoundError as e:
             self.logger.error(f"Comparison: FileNotFoundError: {e}")
-            # Nothing and something is not the same
-            same = False
+            same = False  # Nothing and something is not the same
 
         return same
 
     def _sync_item(self, entry: os.DirEntry[str], src, dst):
+        """Sync an individual item.
+
+        Args:
+            entry: os.DirEntry of the item
+            src: current working source path
+            dst: current working destination path
+        """
         self.logger.debug(f"Item sync: Destination {os.path.join(dst, entry.name)}")
 
         if entry.is_junction():
@@ -209,7 +215,7 @@ class Synchronizer:
                     os.path.join(src, entry.name), os.path.join(dst, entry.name)
                 )
 
-            else:  # dst/entry.name exists, but is a file -> delete it and copy directory from source
+            else:  # dst/entry.name exists but is a file -> delete it and copy directory from source
                 self._remove(os.path.join(dst, entry.name))
 
                 if entry.is_junction():
@@ -235,6 +241,13 @@ class Synchronizer:
                 self._handle_unknown_file(entry, src, dst)
 
     def _handle_junction(self, entry: os.DirEntry[str], src, dst):
+        """Handle NTFS junctions.
+
+        Args:
+            entry: os.DirEntry of the junction
+            src: current working source path
+            dst: current working destination path
+        """
         self.logger.debug("Copy Junction")
 
         self.logger.warning(
@@ -247,7 +260,7 @@ class Synchronizer:
         """Handle symlink copying.
 
         Args:
-            entry: os.DirEntry[str] of the symlink
+            entry: os.DirEntry of the symlink
             src: current working source path
             dst: current working destination path
         """
@@ -309,7 +322,7 @@ class Synchronizer:
         """Handle copying of unknown files.
 
         Args:
-            entry: os.DirEntry[str] of the file
+            entry: os.DirEntry of the file
             src: current working source path
             dst: current working destination path
         """
@@ -319,7 +332,7 @@ class Synchronizer:
             self.logger.debug("Odd files disabled, skipping...")
 
             self.logger.warning(
-                f"Unknown file type: {os.path.abspath(entry.path)}, skipping..."
+                f"Unknown file: {os.path.abspath(entry.path)}, skipping..."
             )
 
             return
@@ -491,7 +504,7 @@ def main():
     parser.add_argument("-v", "--verbose", help="verbose", action="store_true")
     parser.add_argument(
         "--dont-dangle-symlinks",
-        help="Don't keep dangling symlinks or translate where possible (default: keep)",
+        help="Don't keep dangling symlinks or translate valid targets (default: keep)",
         action="store_true",
     )  # Initially inverted, but then the folders wouldn't be identical...
     parser.add_argument(
