@@ -211,8 +211,8 @@ class Synchronizer:
         self.logger.debug(f"Item sync: Destination {os.path.join(dst, entry.name)}")
 
         if entry.is_junction():
-            if os.path.exists(os.path.join(dst, entry.name)):
-                self._remove(os.path.join(dst, entry.name))
+            #            if os.path.lexists(os.path.join(dst, entry.name)):
+            #                self._remove(os.path.join(dst, entry.name))
 
             self._handle_junction(entry, src, dst)
 
