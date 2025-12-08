@@ -271,6 +271,7 @@ class Synchronizer:
         real_path = os.path.realpath(entry.path)
 
         self.logger.debug(f"Junction: real path: {real_path}")
+        self.logger.debug(f"Junction: src real path: {os.path.realpath(src)}")
 
         if os.path.realpath(src) in real_path:
             self.logger.warning(f"Junction {entry.path} is recursive! Skipping")
