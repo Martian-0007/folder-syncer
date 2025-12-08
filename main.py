@@ -100,6 +100,12 @@ class Synchronizer:
                 raise e
 
     def _sync_folder(self, src, dst):
+        """Sync source and destination folders.
+
+        Args:
+            src: source folder path
+            dst: destination folder path
+        """
         if not os.path.lexists(dst):
             self._mkdir(dst)
 
@@ -157,6 +163,16 @@ class Synchronizer:
             self._sync_item(i, src, dst)
 
     def _compare_entry(self, entry: os.DirEntry[str], src, dst) -> bool:
+        """Check whether an entry was already synced or not.
+
+        Args:
+            entry: os.DirEntry of the source object
+            src: current working source path
+            dst: current working destination path
+
+        Returns:
+            bool: True if entry was already synced, else False
+        """
         same = False  # By default, assume source and destination are different
 
         if entry.is_dir(follow_symlinks=False):
@@ -501,6 +517,7 @@ class Synchronizer:
         Raises:
             ValueError: if the symlink target is not a previously translated symlink target
         """
+        # Example implementation of a detranslation function for synced translated symlinks
         self.logger.debug(f"Symlink target path on disk: {symlink_target_path}")
 
         detranslated = symlink_target_path[symlink_target_path.index("/./") + 3 :]
