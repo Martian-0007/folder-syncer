@@ -284,12 +284,24 @@ class Synchronizer:
 
         if real_path in os.path.realpath(src):
             self.logger.warning(f"Junction {entry.path} is recursive! Skipping")
+
+            if os.path.lexists(os.path.join(dst, entry.name)):
+                # junction could be invalid, but present in dst -> remove from destination
+                # (e.g. junction became invalid between syncs)
+                self._remove(os.path.join(dst, entry.name))
+
             return
 
         if not os.path.exists(real_path):
             self.logger.warning(
                 f"Junction {entry.path} target {real_path} does not exist! Skipping"
             )
+
+            if os.path.lexists(os.path.join(dst, entry.name)):
+                # junction could be invalid, but present in dst -> remove from destination
+                # (e.g. junction became invalid between syncs)
+                self._remove(os.path.join(dst, entry.name))
+
             return
 
         self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
