@@ -123,6 +123,16 @@ class Synchronizer:
         for i in src_entries:
             self.logger.debug(f"Syncing entry: {i}")
 
+            if i.inode in self.encountered_inodes.keys():
+                self.logger.warning(
+                    f"{i.path} was already encountered in {self.encountered_inodes[i.inode]}, skipping!"
+                )
+
+                return
+
+            else:
+                self.encountered_inodes[i.inode] = i.path
+
             if i.name in dst_contents:
                 same = self._compare_entry(i, src, dst)
 
@@ -199,16 +209,6 @@ class Synchronizer:
             dst: current working destination path
         """
         self.logger.debug(f"Item sync: Destination {os.path.join(dst, entry.name)}")
-
-        if entry.inode in self.encountered_inodes:
-            self.logger.warning(
-                f"{entry.path} was already encountered in {self.encountered_inodes[entry.inode]}, skipping!"
-            )
-
-            return
-
-        else:
-            self.encountered_inodes[entry.inode] = entry.path
 
         if entry.is_junction():
             if os.path.exists(os.path.join(dst, entry.name)):
