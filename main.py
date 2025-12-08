@@ -121,7 +121,7 @@ class Synchronizer:
                 self._remove(os.path.join(dst, i.name))
 
         for i in src_entries:
-            self.logger.debug(f"Syncing entry: {i}")
+            self.logger.debug(f"Syncing entry: {i}: Inode {i.inode}")
 
             if i.inode in self.encountered_inodes.keys():
                 self.logger.warning(
