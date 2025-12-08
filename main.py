@@ -37,7 +37,6 @@ class Synchronizer:
         self.count: int = count
         self.dangle: bool = not dont_dangle
         self.odd: bool = odd
-        self.odd: bool = odd
 
         self.source_abs = os.path.abspath(self.source)
         self.replica_abs = os.path.abspath(self.replica)
@@ -148,7 +147,7 @@ class Synchronizer:
 
                 source_link_path = os.readlink(entry.path)
 
-                target = self._symlink_path_handler(
+                target = self._get_symlink_target_path(
                     source_link_path,
                     os.path.abspath(os.path.join(src, source_link_path)),
                     entry,
@@ -245,11 +244,17 @@ class Synchronizer:
         self._sync_folder(os.path.join(src, entry.name), os.path.join(dst, entry.name))
 
     def _handle_symlink(self, entry: os.DirEntry[str], src, dst):
+        """Handle symlink copying.
+
+        Args:
+            entry: os.DirEntry[str] of the symlink
+            src: current working source path
+            dst: current working destination path
+        """
         self.logger.debug("Copy Symlink")
 
         source_link_path = os.readlink(entry.path)
 
-        target_is_dir = False  # assume link points to a file
         target_is_dir = os.path.isdir(entry.path)  # os.path.isdir follows symlinks
         # On Windows there seems to be no reasonable way to differentiate between an empty
         # file symlink and an empty directory symlink
@@ -258,7 +263,7 @@ class Synchronizer:
         else:
             self.logger.debug(f"Symlink {entry.path} doesn't point to a directory")
 
-        target = self._symlink_path_handler(
+        target = self._get_symlink_target_path(
             source_link_path,
             os.path.abspath(os.path.join(os.path.abspath(src), source_link_path)),
             entry,
@@ -301,6 +306,13 @@ class Synchronizer:
         self._copy(entry.path, os.path.join(dst, entry.name))
 
     def _handle_unknown_file(self, entry: os.DirEntry[str], src, dst):
+        """Handle copying of unknown files.
+
+        Args:
+            entry: os.DirEntry[str] of the file
+            src: current working source path
+            dst: current working destination path
+        """
         self.logger.debug("Copy Odd File")
 
         if not self.odd:
@@ -334,7 +346,7 @@ class Synchronizer:
             )
             self.logger.info(f"Skipping {os.path.abspath(entry.path)}")
 
-    def _symlink_path_handler(
+    def _get_symlink_target_path(
         self,
         symlink_target_path,
         symlink_target_path_absolute,
@@ -342,14 +354,19 @@ class Synchronizer:
         src,
         dst=None,
     ) -> str | None:
-        """Check if a symlink is pointing inside the source folder.
+        """Determine the target path of a symlink.
 
-        Returns absolute path of the original link in case symlink points outside the source folder.
-        Returns None when symlink is dangling and dangling symlinks are not enabled.
+        Returns a translated absolute path for the original symlink target in case symlink points outside
+        the source folder and dangling symlinks are not enabled.
+
+        Translated path of the symlink target is acquired by combining the normalized absolute path
+        to the symlink itself, "." to allow for de-translation, and the original path of the symlink.
+
+        Returns None when the symlink is dangling and dangling symlinks are not enabled.
 
         Args:
-            symlink_target_path: path of symlink target
-            symlink_target_path_absolute: absolute path of symlink target
+            symlink_target_path: path of the symlink target
+            symlink_target_path_absolute: absolute path of the symlink target
             entry: os.DirEntry of the symlink
             src: current working source path
             dst: current working destination path
@@ -363,7 +380,9 @@ class Synchronizer:
             f"Symlink target absolute path: {symlink_target_path_absolute}"
         )
 
-        dangling = not os.path.lexists(symlink_target_path_absolute)
+        dangling = not os.path.lexists(
+            symlink_target_path_absolute
+        )  # target can be another symlink
 
         # Allow reversing symlink translation
         target_abs_non_normal = str(
@@ -383,13 +402,13 @@ class Synchronizer:
                 [self.source_abs, symlink_target_path_absolute]
             ):
                 self.logger.debug(f"Symlink inside source, using {symlink_target_path}")
-                return symlink_target_path
 
             else:
                 self.logger.debug(
                     f"Symlink path leads outside of source folder, but --dont-dangle-symlinks is disabled, using {symlink_target_path}"
                 )
-                return symlink_target_path
+
+            return symlink_target_path
 
         elif not dangling:
             if self.source_abs == os.path.commonpath(
@@ -406,6 +425,29 @@ class Synchronizer:
 
         else:
             return None
+
+    def _detranslate_symlink_target_path(
+        self,
+        symlink_target_path,
+    ):
+        """Detranslate target path from a previously translated symlink target.
+
+        Args:
+            symlink_target_path: path of the symlink target
+
+        Raises:
+            ValueError: if the symlink target is not a previously translated symlink target
+        """
+        self.logger.debug(f"Symlink target path on disk: {symlink_target_path}")
+
+        detranslated = symlink_target_path[symlink_target_path.index("/./") + 3 :]
+        # Translated symlinks have their own original directory path normalized before
+        # the use of it for translation, meaning there will be no "/./" or "/../" preceding the target path
+        #
+        # + 3 because the index starts at the first "/" and we want only
+        # the path following the "/./" expression
+
+        return detranslated
 
     def _copy(self, src, dst):
         self.logger.debug("Copy")
@@ -454,11 +496,11 @@ def main():
     )  # Initially inverted, but then the folders wouldn't be identical...
     parser.add_argument(
         "--odd-files",
-        help="Try to sync unknown files (default: skip/resolve)",
+        help="Try to sync unknown files (default: skip)",
         action="store_true",
     )
     # Maybe TODO: Follow symlinks
-    # Not implemented: folders are supposed to be identical, so symlinks should be in both
+    # Not implemented: folders are supposed to be identical, so symlinks should be in replica if they are in source
 
     try:
         args = parser.parse_args()
@@ -497,7 +539,7 @@ def main():
         if not os.chflags in os.supports_follow_symlinks:
             logger.warning("Cannot modify flags of symlinks")
     except AttributeError:
-        pass  # os.chflags is not supported on all platforms
+        pass  # os.chflags is not available on all platforms
 
     syncer = Synchronizer(
         args.source,
