@@ -73,7 +73,7 @@ class Synchronizer:
             self.logger.error(
                 f"Source {self.source_real} is not a directory or doesn't exist! Quitting"
             )
-            quit()
+            raise Exception(f"Source {self.source_real} is not a directory or doesn't exist")
 
         if os.path.commonpath([self.source_real, self.replica_real]) in [
             self.source_real,
@@ -82,7 +82,7 @@ class Synchronizer:
             self.logger.error(
                 f"Replica {self.replica_real} or source {self.source_real} is relative to the other! Quitting"
             )
-            quit()
+            raise Exception(f"Replica {self.replica_real} or source {self.source_real} is relative to the other")
 
         self.logger.info("Syncing...")
 
@@ -94,7 +94,7 @@ class Synchronizer:
                 self.logger.error(
                     f"Replica {self.replica_real} exists, but is not a directory! Quitting"
                 )
-                quit()
+                raise Exception(f"Replica {self.replica_real} exists, but is not a directory")
 
             else:
                 raise e
@@ -586,7 +586,7 @@ def main():
         args = parser.parse_args()
     except argparse.ArgumentError:
         parser.print_help()
-        quit()
+        return
 
     logger = logging.getLogger(__name__)
 
@@ -606,10 +606,10 @@ def main():
 
     if args.interval_seconds < 0:
         logger.error("Interval must be positive!")
-        quit()
+        return
     if args.count < 0:
         logger.error("Count must be a positive integer!")
-        quit()
+        return
 
     if not os.chmod in os.supports_follow_symlinks:
         logger.warning("Cannot modify permission bits of symlinks")
@@ -634,6 +634,10 @@ def main():
         syncer.run()
     except KeyboardInterrupt:
         logger.error(f"Interrupted, task unfinished")
+        return
+    except Exception as e:
+        logger.error(f"Exception received, quitting! E: {e}")
+        return
 
 
 if __name__ == "__main__":
